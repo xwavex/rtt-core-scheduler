@@ -1,0 +1,74 @@
+import("rtt-activity-sandbox");
+import("eigen_typekit");
+import("kdl_typekit");
+import("rst-rt_typekit");
+import("stdint");
+import("rtt-core-extensions");
+
+loadComponent("ir", "cosima::IntrospectionReporter");
+setActivityOnCPU("ir",0,1,ORO_SCHED_OTHER,7);
+
+### Master 1
+loadComponent("M", "Master");
+setActivityOnCPU("M", 1, 5, ORO_SCHED_OTHER, 0);
+M.introspection.enableAllIntrospection(true);
+M.introspection.setCallTraceStorageSize(400);
+M.introspection.sendAtLeastOncePerXms(1000);
+M.introspection.enableAutoWriteExecutionInformation(false);
+M.treatAsSlaves(true);
+
+loadComponent("S", "Sender");
+S.introspection.enableAllIntrospection(true);
+S.introspection.setCallTraceStorageSize(400);
+S.introspection.sendAtLeastOncePerXms(1000);
+S.introspection.enableAutoWriteExecutionInformation(false);
+S.configure();
+
+loadComponent("R", "Receiver");
+R.introspection.enableAllIntrospection(true);
+R.introspection.setCallTraceStorageSize(400);
+R.introspection.sendAtLeastOncePerXms(1000);
+R.introspection.enableAutoWriteExecutionInformation(false);
+R.configure();
+
+#var ConnPolicy cp
+#connect("S.out_port", "R.in_port", cp)
+
+
+addPeer("M", "S");
+addPeer("M", "R");
+M.configure();
+
+### MASTER 2
+loadComponent("M2", "Master");
+setActivityOnCPU("M2", 1.4, 5, ORO_SCHED_OTHER, 3);
+M2.introspection.enableAllIntrospection(true);
+M2.introspection.setCallTraceStorageSize(400);
+M2.introspection.sendAtLeastOncePerXms(1000);
+M2.introspection.enableAutoWriteExecutionInformation(false);
+M2.treatAsSlaves(true);
+
+loadComponent("S2", "Sender");
+S2.introspection.enableAllIntrospection(true);
+S2.introspection.setCallTraceStorageSize(400);
+S2.introspection.sendAtLeastOncePerXms(1000);
+S2.introspection.enableAutoWriteExecutionInformation(false);
+S2.configure();
+
+addPeer("M2", "S2");
+M2.configure();
+
+var ConnPolicy cp2;
+connect("S2.out_port", "R.in_port", cp2);
+
+### Introspection connections
+connectPeers("ir","M");
+connectPeers("ir","M2");
+connectPeers("ir","S");
+connectPeers("ir","S2");
+connectPeers("ir","R");
+ir.configure();
+ir.start();
+
+M.start();
+M2.start();
