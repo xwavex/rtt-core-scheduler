@@ -59,6 +59,8 @@ include_directories(
 
 orocos_component(${PROJECT_NAME}
   src/CoreScheduler.cpp
+  src/BarrierCondition.cpp
+  src/BarrierData.cpp
   src/Sender.cpp
   src/Receiver.cpp
 )
