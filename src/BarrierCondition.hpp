@@ -38,69 +38,84 @@ namespace cosima
 
 class BarrierCondition
 {
-  public:
-    /**
+public:
+  /**
      * Constructor.
      */
-    BarrierCondition();
+  BarrierCondition();
 
-    /**
+  /**
      * Constructor that takes the name of the target TaskContext.
      */
-    BarrierCondition(std::string const &ttcName);
+  BarrierCondition(std::string const &ttcName);
 
-    /**
+  /**
      * Set the target task context name.
      */
-    void setTargetTaskContextName(std::string const &ttcName);
+  void setTargetTaskContextName(std::string const &ttcName);
 
-    /**
+  /**
      * Set the barrier task context names as batch.
      */
-    void setBarrierTaskContextNamesBatch(const std::vector<std::string> btcNames);
+  void setBarrierTaskContextNamesBatch(const std::vector<std::string> btcNames);
 
-    /**
+  /**
+     * Add a battier task context name.
+     */
+  void addBarrierTaskContextName(std::string const &btcName);
+
+  /**
      * Get the target task context name.
      */
-    const std::string getTargetTaskContextName();
+  const std::string getTargetTaskContextName();
 
-    /**
+  /**
      * Get all barrier task context names.
      */
-    const std::vector<std::string> getBarrierTaskContextNames();
+  const std::vector<std::string> getBarrierTaskContextNames();
 
-    /**
+  /**
      * Add new data to the barrier data storage.
      */
-    void addBarrierData(std::shared_ptr<BarrierData> data);
+  void addBarrierData(std::shared_ptr<BarrierData> data);
 
-    /**
+  /**
      * Get the barrier data storage.
      */
-    std::vector<std::shared_ptr<BarrierData>> getBarrierData();
+  std::vector<std::shared_ptr<BarrierData>> getBarrierData();
 
-    /**
+  /**
      * Check if all barrier data is true.
      */
-    bool isFulfilled();
+  bool isFulfilled();
 
-  private:
-    /**
+  /**
+   * Check if the barrier data is used in this barrier condition.
+   */
+  bool isBarrierDataRelated(std::shared_ptr<BarrierData> bd);
+
+  /**
+   * Reset all barrier data.
+   */
+  void resetAllBarrierData();
+
+private:
+  /**
      * Name of the TaskContext for which the barrier applies.
      */
-    std::string m_targetTaskContextName;
+  std::string m_targetTaskContextName;
 
-    /**
+  /**
      * Vector containing all the TaskContext names considered by the barrier for m_targetTaskContextName.
      */
-    std::vector<std::string> m_barrierTaskContextNames;
+  std::vector<std::string> m_barrierTaskContextNames;
 
-    /**
+  /**
      * This vector holds all the data associated with this barrier condition.
      * 
      * TODO perhaps data could also hold a pointer to the port etc. instead of just being a bool?
      */
-    std::vector<std::shared_ptr<BarrierData>> m_barrierData;
+  std::vector<std::shared_ptr<BarrierData>> m_barrierData;
 };
 
 } // namespace cosima

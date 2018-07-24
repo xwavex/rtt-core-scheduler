@@ -55,5 +55,5 @@ const std::string BarrierData::getDataName()
 
 bool BarrierData::getDataState()
 {
-    return m_dataState;
+    return m_dataState.load();
 }

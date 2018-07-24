@@ -52,14 +52,29 @@ public:
   double getOrocosTime();
 
   /**
-   * Register a new barrier condition for targetTCName.
+   * Register multiple new barrier condition for targetTCName.
    */
   bool registerBarrierConditionBatch(std::string const &targetTCName, const std::vector<std::string> barrierTCNames);
+
+  /**
+   * Register a new barrier condition for targetTCName.
+   */
+  bool registerBarrierCondition(std::string const &targetTCName, std::string const &barrierTCName);
+
+  /**
+   * Clear all registered barrier conditions for targetTCName.
+   */
+  void clearRegisteredBarrierConditions(std::string const &targetTCName);
 
   /**
    * Generate the ports and shared data based on the registered barrier conditions.
    */
   bool generatePortsAndData();
+
+  /**
+   * Debug external trigger mechanism.
+   */
+  void triggerEventData(std::string const &portName, bool value);
 
 private:
   // RTT::InputPort<bool> in_A_port;
@@ -82,17 +97,16 @@ private:
   ///    (C -in-> B)
   ///////////////////
 
-  /**
-   * Example event input port that acts as trigger to wait for C so B can be executed.
-   */
-  RTT::InputPort<BarrierData> ev_trigger_C_B;
-  RTT::FlowStatus ev_trigger_C_B_flow;
-  BarrierData ev_trigger_C_B_data;
-
-  /**
-   * Example local trigger to wait for A (to finish) so B can be executed.
-   */
-  BarrierData lo_trigger_A_B_data;
+  // /**
+  //  * Example event input port that acts as trigger to wait for C so B can be executed.
+  //  */
+  // RTT::InputPort<BarrierData> ev_trigger_C_B;
+  // RTT::FlowStatus ev_trigger_C_B_flow;
+  // BarrierData ev_trigger_C_B_data;
+  // /**
+  //  * Example local trigger to wait for A (to finish) so B can be executed.
+  //  */
+  // BarrierData lo_trigger_A_B_data;
 
   // TODO how to generate and dynamically manage the internal state?
   // Use a hashmap to encode the name and ~data~: "ev_trigger_C_B_data" : ~ev_trigger_C_B_data~.
@@ -122,14 +136,33 @@ private:
   std::shared_ptr<BarrierCondition> m_activeBarrierCondition;
 
   /**
+   * Holds the index to the active task context in m_tcList.
+   */
+  int m_activeTaskContextIndex;
+
+  /**
+   * Hold a pointer to the active task context.
+   */
+  RTT::TaskContext *m_activeTaskContextPtr;
+
+  /**
    * This map allows (hopefully) fast access to the data pointer based on the associated port interface. 
    */
-  std::map<RTT::base::PortInterface *, std::shared_ptr<BarrierData>> m_mapPortToDataPtr;
+  std::map<RTT::base::PortInterface *, std::shared_ptr<BarrierData>>
+      m_mapPortToDataPtr;
 
   /**
    * Prints debug information including registered port, barrier conditions, and so on.
    */
   void printDebugInformation();
+
+  /**
+   * Container for generated ports. Because I had some problems without such an container before.
+   * Perhaps there is a smarter solution to this.
+   */
+  std::vector<std::shared_ptr<RTT::InputPort<bool>>> genPortEvInputPtrs;
+
+  RTT::OutputPort<bool> debugPort;
 };
 
 } // namespace cosima

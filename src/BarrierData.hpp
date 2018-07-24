@@ -26,6 +26,7 @@
 #pragma once
 
 #include <string>
+#include <atomic>
 
 namespace cosima
 {
@@ -72,7 +73,7 @@ private:
   /**
    * State of the data.
    */
-  bool m_dataState;
+  std::atomic<bool> m_dataState;
 };
 
 } // namespace cosima

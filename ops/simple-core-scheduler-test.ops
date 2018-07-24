@@ -1,0 +1,43 @@
+import("rtt-core-scheduler");
+import("eigen_typekit");
+import("kdl_typekit");
+import("rst-rt_typekit");
+import("stdint");
+import("rtt-core-extensions");
+
+loadComponent("ir", "cosima::IntrospectionReporter");
+setActivityOnCPU("ir",0,1,ORO_SCHED_OTHER,7);
+
+### CoreScheduler 1
+loadComponent("CS1", "cosima::CoreScheduler");
+setActivityOnCPU("CS1", 0, 5, ORO_SCHED_OTHER, 0);
+CS1.introspection.enableAllIntrospection(true);
+CS1.introspection.setCallTraceStorageSize(400);
+CS1.introspection.sendAtLeastOncePerXms(1000);
+CS1.introspection.enableAutoWriteExecutionInformation(false);
+
+
+
+loadComponent("R", "Receiver");
+R.introspection.enableAllIntrospection(true);
+R.introspection.setCallTraceStorageSize(400);
+R.introspection.sendAtLeastOncePerXms(1000);
+R.introspection.enableAutoWriteExecutionInformation(false);
+R.configure();
+
+loadComponent("S", "Sender");
+S.introspection.enableAllIntrospection(true);
+S.introspection.setCallTraceStorageSize(400);
+S.introspection.sendAtLeastOncePerXms(1000);
+S.introspection.enableAutoWriteExecutionInformation(false);
+S.configure();
+
+# Receiver is constrained by the Sender.
+CS1.registerBarrierCondition("R", "S");
+
+addPeer("CS1", "S");
+addPeer("CS1", "R");
+
+CS1.configure()
+
+CS1.printDebugInformation()

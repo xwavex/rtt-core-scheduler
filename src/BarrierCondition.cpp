@@ -42,6 +42,11 @@ void BarrierCondition::setBarrierTaskContextNamesBatch(const std::vector<std::st
     m_barrierTaskContextNames = btcNames;
 }
 
+void BarrierCondition::addBarrierTaskContextName(std::string const &btcName)
+{
+    m_barrierTaskContextNames.push_back(btcName);
+}
+
 const std::string BarrierCondition::getTargetTaskContextName()
 {
     return m_targetTaskContextName;
@@ -64,6 +69,29 @@ std::vector<std::shared_ptr<BarrierData>> BarrierCondition::getBarrierData()
 
 bool BarrierCondition::isFulfilled()
 {
-    // TODO
+    for (auto bd : m_barrierData)
+    {
+        if (!bd->getDataState())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool BarrierCondition::isBarrierDataRelated(std::shared_ptr<BarrierData> bd)
+{
+    if (std::find(m_barrierData.begin(), m_barrierData.end(), bd) != m_barrierData.end())
+    {
+        return true;
+    }
     return false;
+}
+
+void BarrierCondition::resetAllBarrierData()
+{
+    for (auto const &bd : m_barrierData)
+    {
+        bd->setDataState(false);
+    }
 }

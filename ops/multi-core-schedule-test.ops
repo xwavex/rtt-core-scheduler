@@ -1,4 +1,4 @@
-import("rtt-activity-sandbox");
+import("rtt-core-scheduler");
 import("eigen_typekit");
 import("kdl_typekit");
 import("rst-rt_typekit");
@@ -7,6 +7,14 @@ import("rtt-core-extensions");
 
 loadComponent("ir", "cosima::IntrospectionReporter");
 setActivityOnCPU("ir",0,1,ORO_SCHED_OTHER,7);
+
+### CoreScheduler 1
+loadComponent("CS1", "cosima::CoreScheduler");
+setActivityOnCPU("CS1", 1, 5, ORO_SCHED_OTHER, 0);
+CS1.introspection.enableAllIntrospection(true);
+CS1.introspection.setCallTraceStorageSize(400);
+CS1.introspection.sendAtLeastOncePerXms(1000);
+CS1.introspection.enableAutoWriteExecutionInformation(false);
 
 ### Master 1
 loadComponent("M", "Master");
