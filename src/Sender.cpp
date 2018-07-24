@@ -1,4 +1,4 @@
-/** 
+/**
  * Author: Dennis Leroy Wigand
  * Date:   10 Jul 2018
  *
@@ -61,6 +61,8 @@ void Sender::updateHookInternal()
 
 	RTT::log(RTT::Debug) << this->getName() << "   SEND > " << out_Sender_var << RTT::endlog();
 
+	var_trigger = true;
+	out_trigger.write(var_trigger);
 	// var_exec = 1;
 	// out_exec.write(var_exec);
 	var_exec = -1;
@@ -88,6 +90,11 @@ void Sender::preparePorts()
 	out_exec.setName("out_exec");
 	out_exec.setDataSample(var_exec);
 	ports()->addPort(out_exec);
+
+	var_trigger = false;
+	out_trigger.setName("out_trigger");
+	out_trigger.setDataSample(var_trigger);
+	ports()->addPort(out_trigger);
 
 	portsArePrepared = true;
 }

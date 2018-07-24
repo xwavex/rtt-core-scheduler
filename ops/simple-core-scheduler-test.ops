@@ -6,7 +6,7 @@ import("stdint");
 import("rtt-core-extensions");
 
 loadComponent("ir", "cosima::IntrospectionReporter");
-setActivityOnCPU("ir",0,1,ORO_SCHED_OTHER,7);
+setActivityOnCPU("ir",0,1,ORO_SCHED_OTHER,3);
 
 ### CoreScheduler 1
 loadComponent("CS1", "cosima::CoreScheduler");
@@ -38,6 +38,22 @@ CS1.registerBarrierCondition("R", "S");
 addPeer("CS1", "S");
 addPeer("CS1", "R");
 
-CS1.configure()
+CS1.configure();
 
-CS1.printDebugInformation()
+CS1.printDebugInformation();
+
+loadComponent("SSS", "Sender");
+setActivityOnCPU("SSS",1.5,1,ORO_SCHED_OTHER,2);
+SSS.introspection.enableAllIntrospection(true);
+SSS.introspection.setCallTraceStorageSize(400);
+SSS.introspection.sendAtLeastOncePerXms(1000);
+SSS.introspection.enableAutoWriteExecutionInformation(false);
+SSS.configure();
+
+
+var ConnPolicy cp3;
+connect("SSS.out_trigger", "CS1.ev_port_S_triggers_R", cp3);
+
+CS1.start();
+#CS1.triggerEventData("ev_port_S_triggers_R", true);
+#SSS.start();

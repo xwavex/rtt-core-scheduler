@@ -1,4 +1,4 @@
-/** 
+/**
  * Author: Dennis Leroy Wigand
  * Date:   10 Jul 2018
  *
@@ -41,6 +41,9 @@ private:
 
   RTT::OutputPort<int> out_exec;
   int var_exec;
+
+  RTT::OutputPort<bool> out_trigger;
+  int var_trigger;
 
   double startTime;
   double startUpdateTime;

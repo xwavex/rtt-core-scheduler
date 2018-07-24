@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <mutex>
 
 #include <rtt/Port.hpp>
 
@@ -47,22 +48,22 @@ public:
   /**
      * Constructor that takes the name of the target TaskContext.
      */
-  BarrierCondition(std::string const &ttcName);
+  BarrierCondition(std::string ttcName);
 
   /**
      * Set the target task context name.
      */
-  void setTargetTaskContextName(std::string const &ttcName);
+  void setTargetTaskContextName(std::string ttcName);
 
   /**
      * Set the barrier task context names as batch.
      */
-  void setBarrierTaskContextNamesBatch(const std::vector<std::string> btcNames);
+  void setBarrierTaskContextNamesBatch(std::vector<std::string> btcNames);
 
   /**
      * Add a battier task context name.
      */
-  void addBarrierTaskContextName(std::string const &btcName);
+  void addBarrierTaskContextName(std::string btcName);
 
   /**
      * Get the target task context name.
@@ -112,10 +113,12 @@ private:
 
   /**
      * This vector holds all the data associated with this barrier condition.
-     * 
+     *
      * TODO perhaps data could also hold a pointer to the port etc. instead of just being a bool?
      */
   std::vector<std::shared_ptr<BarrierData>> m_barrierData;
+
+  std::mutex mutex;
 };
 
 } // namespace cosima

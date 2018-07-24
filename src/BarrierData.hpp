@@ -42,12 +42,12 @@ public:
   /**
    * Constructor with parameters.
    */
-  BarrierData(std::string const &dataName, bool dataState);
+  BarrierData(std::string dataName, bool dataState);
 
   /**
    * Set the name for the data.
    */
-  void setDataName(std::string const &dataName);
+  void setDataName(std::string dataName);
 
   /**
    * Set the state for the data.

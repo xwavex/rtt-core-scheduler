@@ -32,17 +32,17 @@ BarrierCondition::BarrierCondition()
 {
 }
 
-BarrierCondition::BarrierCondition(std::string const &ttcName)
+BarrierCondition::BarrierCondition(std::string ttcName)
 {
     m_targetTaskContextName = ttcName;
 }
 
-void BarrierCondition::setBarrierTaskContextNamesBatch(const std::vector<std::string> btcNames)
+void BarrierCondition::setBarrierTaskContextNamesBatch(std::vector<std::string> btcNames)
 {
     m_barrierTaskContextNames = btcNames;
 }
 
-void BarrierCondition::addBarrierTaskContextName(std::string const &btcName)
+void BarrierCondition::addBarrierTaskContextName(std::string btcName)
 {
     m_barrierTaskContextNames.push_back(btcName);
 }
@@ -81,6 +81,7 @@ bool BarrierCondition::isFulfilled()
 
 bool BarrierCondition::isBarrierDataRelated(std::shared_ptr<BarrierData> bd)
 {
+    // std::lock_guard<std::mutex> lock(mutex);
     if (std::find(m_barrierData.begin(), m_barrierData.end(), bd) != m_barrierData.end())
     {
         return true;
@@ -90,7 +91,7 @@ bool BarrierCondition::isBarrierDataRelated(std::shared_ptr<BarrierData> bd)
 
 void BarrierCondition::resetAllBarrierData()
 {
-    for (auto const &bd : m_barrierData)
+    for (auto bd : m_barrierData)
     {
         bd->setDataState(false);
     }

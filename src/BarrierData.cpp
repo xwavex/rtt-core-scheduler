@@ -32,13 +32,13 @@ BarrierData::BarrierData()
 {
 }
 
-BarrierData::BarrierData(std::string const &dataName, bool dataState)
+BarrierData::BarrierData(std::string dataName, bool dataState)
 {
     m_dataName = dataName;
     m_dataState = dataState;
 }
 
-void BarrierData::setDataName(std::string const &dataName)
+void BarrierData::setDataName(std::string dataName)
 {
     m_dataName = dataName;
 }

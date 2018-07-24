@@ -42,7 +42,7 @@ public:
   ///////////////////////////////////////////
 
   /**
-   * Override to intercept event port triggers. 
+   * Override to intercept event port triggers.
    */
   bool dataOnPortHook(RTT::base::PortInterface *port);
 
@@ -54,17 +54,17 @@ public:
   /**
    * Register multiple new barrier condition for targetTCName.
    */
-  bool registerBarrierConditionBatch(std::string const &targetTCName, const std::vector<std::string> barrierTCNames);
+  bool registerBarrierConditionBatch(std::string targetTCName, std::vector<std::string> barrierTCNames);
 
   /**
    * Register a new barrier condition for targetTCName.
    */
-  bool registerBarrierCondition(std::string const &targetTCName, std::string const &barrierTCName);
+  bool registerBarrierCondition(std::string targetTCName, std::string barrierTCName);
 
   /**
    * Clear all registered barrier conditions for targetTCName.
    */
-  void clearRegisteredBarrierConditions(std::string const &targetTCName);
+  void clearRegisteredBarrierConditions(std::string targetTCName);
 
   /**
    * Generate the ports and shared data based on the registered barrier conditions.
@@ -74,7 +74,7 @@ public:
   /**
    * Debug external trigger mechanism.
    */
-  void triggerEventData(std::string const &portName, bool value);
+  void triggerEventData(std::string portName, bool value);
 
 private:
   // RTT::InputPort<bool> in_A_port;
@@ -146,7 +146,7 @@ private:
   RTT::TaskContext *m_activeTaskContextPtr;
 
   /**
-   * This map allows (hopefully) fast access to the data pointer based on the associated port interface. 
+   * This map allows (hopefully) fast access to the data pointer based on the associated port interface.
    */
   std::map<RTT::base::PortInterface *, std::shared_ptr<BarrierData>>
       m_mapPortToDataPtr;

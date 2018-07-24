@@ -14,9 +14,9 @@ using namespace cosima;
 
 CoreScheduler::CoreScheduler(std::string const &name) : cogimon::RTTIntrospectionBase(name), m_activeTaskContextIndex(0)
 {
-	this->addOperation("printDebugInformation", &CoreScheduler::printDebugInformation, this).doc("Prints debug information including registered port, barrier conditions, and so on.");
+	this->addOperation("printDebugInformation", &CoreScheduler::printDebugInformation, this, RTT::OwnThread).doc("Prints debug information including registered port, barrier conditions, and so on.");
 	this->addOperation("registerBarrierCondition", &CoreScheduler::registerBarrierCondition, this).doc("Registers a new barrier condition for an as peer registered task context.");
-	this->addOperation("triggerEventData", &CoreScheduler::triggerEventData, this);
+	this->addOperation("triggerEventData", &CoreScheduler::triggerEventData, this, RTT::OwnThread);
 }
 
 bool CoreScheduler::configureHookInternal()
@@ -99,26 +99,45 @@ void CoreScheduler::updateHookInternal()
 {
 	// if there is no bc for the tc or it is fulfilled, proceed with the execution.
 	// TODO not sure if double checking is really necessary...?
+	RTT::log(RTT::Warning) << ">>> UPDATE <<<" << RTT::endlog();
 	if ((!m_activeBarrierCondition) || (m_activeBarrierCondition->isFulfilled()))
 	{
+		RTT::log(RTT::Warning) << ">>> MIDDLE <<<" << RTT::endlog();
 		m_activeTaskContextPtr->update(); // update() because they are slaves!
 
 		// Prepare for next iteration
 		m_activeTaskContextIndex++;
+		RTT::log(RTT::Warning) << ">>> was " << m_activeTaskContextIndex - 1 << ", is " << m_activeTaskContextIndex << RTT::endlog();
 		if (m_activeTaskContextIndex >= m_tcList.size())
 		{
+			RTT::log(RTT::Warning) << ">>> NEXT ITERATION <<<" << RTT::endlog();
 			// This is how a new iteration begins!
 			m_activeTaskContextIndex = 0;
 			// Clear all until now received barrier data. Reset all barrier constraints
-			for (auto const &p_bcEntry : m_barrierConditions)
+			for (auto &p_bcEntry : m_barrierConditions)
 			{
 				p_bcEntry.second->resetAllBarrierData();
 			}
 		}
 		m_activeTaskContextPtr = m_tcList.at(m_activeTaskContextIndex);
-		m_activeBarrierCondition = m_barrierConditions[m_activeTaskContextPtr->getName()];
+		if (m_barrierConditions.find(m_activeTaskContextPtr->getName()) == m_barrierConditions.end())
+		{
+			// not found
+			m_activeBarrierCondition = 0;
+		} else
+		{
+			// found
+			m_activeBarrierCondition = m_barrierConditions[m_activeTaskContextPtr->getName()];
+		}
+		if (m_activeBarrierCondition)
+		{
+			RTT::log(RTT::Warning) << "m_activeBarrierCondition YES" << RTT::endlog();
+		} else {
+			RTT::log(RTT::Warning) << "m_activeBarrierCondition NO" << RTT::endlog();
+		}
 	}
 	// Do nothing if we haven't fulfilled a barrier condition yet...
+	RTT::log(RTT::Warning) << ">>> END <<<" << RTT::endlog();
 }
 
 void CoreScheduler::stopHookInternal()
@@ -148,7 +167,7 @@ double CoreScheduler::getOrocosTime()
 					  RTT::os::TimeService::Instance()->getTicks());
 }
 
-bool CoreScheduler::registerBarrierConditionBatch(std::string const &targetTCName, const std::vector<std::string> barrierTCNames)
+bool CoreScheduler::registerBarrierConditionBatch(std::string targetTCName, std::vector<std::string> barrierTCNames)
 {
 	if (m_barrierConditions.count(targetTCName) > 0)
 	{
@@ -161,7 +180,7 @@ bool CoreScheduler::registerBarrierConditionBatch(std::string const &targetTCNam
 	return true;
 }
 
-bool CoreScheduler::registerBarrierCondition(std::string const &targetTCName, std::string const &barrierTCName)
+bool CoreScheduler::registerBarrierCondition(std::string targetTCName, std::string barrierTCName)
 {
 	if (m_barrierConditions.count(targetTCName) > 0)
 	{
@@ -176,7 +195,7 @@ bool CoreScheduler::registerBarrierCondition(std::string const &targetTCName, st
 	return true;
 }
 
-void CoreScheduler::clearRegisteredBarrierConditions(std::string const &targetTCName)
+void CoreScheduler::clearRegisteredBarrierConditions(std::string targetTCName)
 {
 	m_barrierConditions.erase(targetTCName);
 }
@@ -206,11 +225,11 @@ bool CoreScheduler::dataOnPortHook(RTT::base::PortInterface *port)
 
 bool CoreScheduler::generatePortsAndData()
 {
-	for (auto const &p_bcEntry : m_barrierConditions)
+	for (auto &p_bcEntry : m_barrierConditions)
 	{
 		std::string targetPortName = p_bcEntry.first;
 		std::shared_ptr<BarrierCondition> barrierCondition = p_bcEntry.second;
-		for (auto const &bcEntry : barrierCondition->getBarrierTaskContextNames())
+		for (auto &bcEntry : barrierCondition->getBarrierTaskContextNames())
 		{
 			// generate port
 			std::string genPortName = "ev_port_" + bcEntry + "_triggers_" + targetPortName;
@@ -236,17 +255,20 @@ bool CoreScheduler::generatePortsAndData()
 			barrierCondition->addBarrierData(genData);
 		}
 	}
+	debugPort.setName("debugPort");
+	debugPort.setDataSample(false);
+	// this->ports()->addPort(debugPort);
 	return true;
 }
 
 void CoreScheduler::printDebugInformation()
 {
 	std::string strBarriers = "";
-	for (auto const &p_bcEntry : m_barrierConditions)
+	for (auto &p_bcEntry : m_barrierConditions)
 	{
 		std::string targetPortName = p_bcEntry.first;
 		std::shared_ptr<BarrierCondition> barrierCondition = p_bcEntry.second;
-		for (auto const &bcEntry : barrierCondition->getBarrierTaskContextNames())
+		for (auto &bcEntry : barrierCondition->getBarrierTaskContextNames())
 		{
 			std::string genPortName = "ev_port_" + bcEntry + "_triggers_" + targetPortName;
 			RTT::base::PortInterface *genPortPtr = this->ports()->getPort(genPortName);
@@ -299,28 +321,14 @@ void CoreScheduler::printDebugInformation()
 						 << RTT::endlog();
 }
 
-void CoreScheduler::triggerEventData(std::string const &portName, bool value)
+void CoreScheduler::triggerEventData(std::string portName, bool value)
 {
 	// find port
 	RTT::base::PortInterface *pif = this->ports()->getPort(portName);
-	debugPort.setName("debugPort");
 	debugPort.connectTo(pif);
 	debugPort.write(value);
 	RTT::log(RTT::Warning) << "Debug send " << (value ? "true" : "false") << " to " << portName << RTT::endlog();
 	debugPort.disconnect();
-	// if (pif)
-	// {
-	// 	RTT::base::OutputPortInterface *senderPort = dynamic_cast<RTT::base::OutputPortInterface *>(pif->antiClone());
-	// 	if (senderPort)
-	// 	{
-	// 		debugPort
-	// 			senderPort->connectTo(pif); // or perhaps the other way around?
-	// 		senderPort->getDataSource()->getRawPointer()
-	// 		senderPort->write(value);
-	// 		// RTT::Service *test = senderPort->createPortObject();
-	// 		// test->
-	// 	}
-	// }
 }
 
 //this macro should appear only once per library
