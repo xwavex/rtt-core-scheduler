@@ -116,7 +116,7 @@ void CoreScheduler::updateHookInternal()
 			m_activeBarrierCondition = 0;
 			// Trigger the thread of the activity to execute its ExecutionEngine and the update() method.
 			PRELOG(Debug) << "updateHook() successful. Trigger next iteration, because we do not have a barrier condition for " << m_activeTaskContextPtr->getName() << "." << RTT::endlog();
-			this->trigger();
+			this->trigger(); // TODO check for valid execution
 		}
 		else
 		{
@@ -132,62 +132,96 @@ void CoreScheduler::updateHookInternal()
 
 bool CoreScheduler::dataOnPortHook(RTT::base::PortInterface *port)
 {
-	RTT::log(RTT::Warning) << "Received Data on " << port->getName() << RTT::endlog();
+	PRELOG(Debug) << "dataOnPortHook( " << port->getName() << " ) in progess..." << RTT::endlog();
 	std::shared_ptr<BarrierData> data_var = m_mapPortToDataPtr[port];
 	if (data_var)
 	{
-		RTT::log(RTT::Warning) << "Data is real!" << RTT::endlog();
 		// TODO yay our data exists, otherwise it would be a great error
 		data_var->setDataState(true);
-		RTT::log(RTT::Warning) << "Data is set to " << data_var->getDataState() << RTT::endlog();
+		PRELOG(Debug) << "Set data " << data_var->getDataName() << " to " << data_var->getDataState() << "." << RTT::endlog();
 		// check for fulfillment only if data is related to activeBarrierCondition
 		std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is also accessed in updateHook().
 		if (m_activeBarrierCondition)
 		{
 			bool in = m_activeBarrierCondition->isBarrierDataRelated(data_var);
 			bool fil = m_activeBarrierCondition->isFulfilled();
-			RTT::log(RTT::Warning) << "Data is related " << in << ", is fulfilled " << fil << RTT::endlog();
+			PRELOG(Debug) << "Data is? related: " << in << ", is? fulfilled: " << fil << "." << RTT::endlog();
 			if (in && fil)
 			{
-				RTT::log(RTT::Warning) << "Data is fulfilled trigger!" << RTT::endlog();
+				PRELOG(Debug) << "dataOnPortHook( " << port->getName() << " ) successful. Notify updateHook()." << RTT::endlog();
 				return true;
 			}
 			else
 			{
-				RTT::log(RTT::Warning) << "Data is not related or fulfilled" << RTT::endlog();
+				PRELOG(Debug) << "Data is not related or fulfilled." << RTT::endlog();
+				PRELOG(Debug) << "dataOnPortHook( " << port->getName() << " ) successful. NOT notifying updateHook()." << RTT::endlog();
 				return false;
 			}
 		}
 		else
 		{
-			RTT::log(RTT::Warning) << "Data ptr is m_activeBarrierCondition = 0" << RTT::endlog();
+			PRELOG(Debug) << "Data ptr is m_activeBarrierCondition == 0." << RTT::endlog();
+			PRELOG(Debug) << "dataOnPortHook( " << port->getName() << " ) successful. NOT notifying updateHook()." << RTT::endlog();
 			return false;
 		}
 	}
-	RTT::log(RTT::Warning) << "No data associated with port " << port->getName() << RTT::endlog();
+	PRELOG(Warning) << "No data associated with port, how can this happen? Did we connect the wrong ports? " << port->getName() << "." << RTT::endlog();
 	return false; // Like this, we are going to ignore the input and do not trigger execution!
 }
 
 void CoreScheduler::stopHookInternal()
 {
-	// if (S)
-	// {
-	// 	S->stop();
-	// }
-	// if (R)
-	// {
-	// 	R->stop();
-	// }
+	PRELOG(Debug) << "stopHook() in progess..." << RTT::endlog();
+	if (m_tcList.size() <= 0)
+	{
+		PRELOG(Debug) << "No peers to stop." << RTT::endlog();
+		return;
+	}
+	// TODO not sure if we really need this!
+	std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is also accessed in updateHook().
+	// stop all task contexts
+	PRELOG(Debug) << "Stopping all peer task contexts." << RTT::endlog();
+	for (RTT::TaskContext *tc : m_tcList)
+	{
+		if (tc)
+		{
+			tc->stop();
+		}
+		else
+		{
+			// should never happen!
+			PRELOG(Error) << "Error cannot stop peer because tc is NULL!" << RTT::endlog();
+		}
+	}
+	PRELOG(Debug) << "stopHook() successful." << RTT::endlog();
 }
 
 void CoreScheduler::cleanupHookInternal()
 {
-}
+	PRELOG(Debug) << "cleanupHook() in progess..." << RTT::endlog();
 
-// 	var_exec = -5;
-// 	out_exec.setName("out_exec");
-// 	out_exec.setDataSample(var_exec);
-// 	ports()->addPort(out_exec);
+	// reset active bc index
+	PRELOG(Debug) << "Reset active task context index." << RTT::endlog();
+	m_activeTaskContextIndex = 0;
+
+	// reset m_activeTaskContextPtr
+	PRELOG(Debug) << "Reset active task context pointer." << RTT::endlog();
+	m_activeTaskContextPtr = NULL;
+
+	// reset tc list
+	PRELOG(Debug) << "Reset task context list." << RTT::endlog();
+	m_tcList.clear();
+
+	// reset m_activeBarrierCondition
+	PRELOG(Debug) << "Reset active barrier condition pointer." << RTT::endlog();
+	m_activeBarrierCondition.reset();
+
+	// reset m_barrierConditions
+	PRELOG(Debug) << "Reset barrier condition map." << RTT::endlog();
+	m_barrierConditions.clear();
+
+	PRELOG(Debug) << "cleanupHook() successful." << RTT::endlog();
+}
 
 double CoreScheduler::getOrocosTime()
 {
@@ -248,8 +282,7 @@ bool CoreScheduler::generatePortsAndData()
 			RTT::base::PortInterface *genPortPtr = this->ports()->getPort(genInputPort->getName()); // or direct get interface?
 			if (!genPortPtr)
 			{
-				// TODO Error
-				RTT::log(RTT::Error) << "[" + this->getName() + "] genPortPtr not found for " + genPortName << RTT::endlog();
+				PRELOG(Error) << "The generated port pointer was not found for " << genPortName << ". Abort generation!" << RTT::endlog();
 				return false;
 			}
 			// TODO should we check if we already have the same pointer registered? that would ne an error then...
@@ -260,70 +293,73 @@ bool CoreScheduler::generatePortsAndData()
 			barrierCondition->addBarrierData(genData);
 		}
 	}
+	// TODO debug stuff
 	debugPort.setName("debugPort");
 	debugPort.setDataSample(false);
-	// this->ports()->addPort(debugPort);
 	return true;
 }
 
 void CoreScheduler::printDebugInformation()
 {
 	std::string strBarriers = "";
-	for (auto &p_bcEntry : m_barrierConditions)
-	{
-		std::string targetPortName = p_bcEntry.first;
-		std::shared_ptr<BarrierCondition> barrierCondition = p_bcEntry.second;
-		for (auto &bcEntry : barrierCondition->getBarrierTaskContextNames())
-		{
-			std::string genPortName = "ev_port_" + bcEntry + "_triggers_" + targetPortName;
-			RTT::base::PortInterface *genPortPtr = this->ports()->getPort(genPortName);
-
-			std::shared_ptr<BarrierData> genDataPtr = m_mapPortToDataPtr[genPortPtr];
-			if (genPortPtr)
-			{
-				if (genDataPtr)
-				{
-					strBarriers += "\n#####    " + bcEntry + " -> " + targetPortName + " ( " + genPortPtr->getName() + ", " + genDataPtr->getDataName() + " )";
-				}
-				else
-				{
-					strBarriers += "\n#####    " + bcEntry + " -> " + targetPortName + " ( " + genPortPtr->getName() + ", PROBLEM NO DATA )";
-				}
-			}
-			else
-			{
-				if (genDataPtr)
-				{
-					strBarriers += "\n#####    " + bcEntry + " -> " + targetPortName + " ( PROBLEM NO PORT, " + genDataPtr->getDataName() + " )";
-				}
-				else
-				{
-					strBarriers += "\n#####    " + bcEntry + " -> " + targetPortName + " ( PROBLEM NO PORT )";
-				}
-			}
-		}
-	}
 	std::string activeBC = "";
-	if (m_activeBarrierCondition)
+	std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is also accessed in updateHook().
 	{
-		activeBC += "##### Active BC: " + m_activeBarrierCondition->getTargetTaskContextName() + "\n" + "#####    Data = ";
-		for (auto bd : m_activeBarrierCondition->getBarrierData())
+		for (auto &p_bcEntry : m_barrierConditions)
 		{
-			activeBC += "{" + bd->getDataName() + " : " + (bd->getDataState() ? "true" : "false") + "} ";
+			std::string targetPortName = p_bcEntry.first;
+			std::shared_ptr<BarrierCondition> barrierCondition = p_bcEntry.second;
+			for (auto &bcEntry : barrierCondition->getBarrierTaskContextNames())
+			{
+				std::string genPortName = "ev_port_" + bcEntry + "_triggers_" + targetPortName;
+				RTT::base::PortInterface *genPortPtr = this->ports()->getPort(genPortName);
+
+				std::shared_ptr<BarrierData> genDataPtr = m_mapPortToDataPtr[genPortPtr];
+				if (genPortPtr)
+				{
+					if (genDataPtr)
+					{
+						strBarriers += "\n#####    " + bcEntry + " -> " + targetPortName + " ( " + genPortPtr->getName() + ", " + genDataPtr->getDataName() + " )";
+					}
+					else
+					{
+						strBarriers += "\n#####    " + bcEntry + " -> " + targetPortName + " ( " + genPortPtr->getName() + ", PROBLEM NO DATA )";
+					}
+				}
+				else
+				{
+					if (genDataPtr)
+					{
+						strBarriers += "\n#####    " + bcEntry + " -> " + targetPortName + " ( PROBLEM NO PORT, " + genDataPtr->getDataName() + " )";
+					}
+					else
+					{
+						strBarriers += "\n#####    " + bcEntry + " -> " + targetPortName + " ( PROBLEM NO PORT )";
+					}
+				}
+			}
+		}
+		if (m_activeBarrierCondition)
+		{
+			activeBC += "##### Active BC: " + m_activeBarrierCondition->getTargetTaskContextName() + "\n" + "#####    Data = ";
+			for (auto bd : m_activeBarrierCondition->getBarrierData())
+			{
+				activeBC += "{" + bd->getDataName() + " : " + (bd->getDataState() ? "true" : "false") + "} ";
+			}
 		}
 	}
-	RTT::log(RTT::Debug) << "\n##### DEBUG INFORMATION of " << this->getName() << " (CoreScheduler) ON  #####"
-						 << "\n"
-						 << "##### Registered Peers: ?"
-						 << "\n"
-						 << "##### Barriers:"
-						 << strBarriers
-						 << "\n"
-						 << activeBC
-						 << "\n"
-						 << "##### DEBUG INFORMATION of "
-						 << this->getName() << " (CoreScheduler) OFF #####"
-						 << RTT::endlog();
+	PRELOG(Error) << "\n##### DEBUG INFORMATION of " << this->getName() << " (CoreScheduler) ON  #####"
+				  << "\n"
+				  << "##### Registered Peers: ?"
+				  << "\n"
+				  << "##### Barriers:"
+				  << strBarriers
+				  << "\n"
+				  << activeBC
+				  << "\n"
+				  << "##### DEBUG INFORMATION of "
+				  << this->getName() << " (CoreScheduler) OFF #####"
+				  << RTT::endlog();
 }
 
 void CoreScheduler::triggerEventData(std::string portName, bool value)
@@ -332,7 +368,7 @@ void CoreScheduler::triggerEventData(std::string portName, bool value)
 	RTT::base::PortInterface *pif = this->ports()->getPort(portName);
 	debugPort.connectTo(pif);
 	debugPort.write(value);
-	RTT::log(RTT::Warning) << "Debug send " << (value ? "true" : "false") << " to " << portName << RTT::endlog();
+	PRELOG(Warning) << "Debug send " << (value ? "true" : "false") << " to " << portName << "." << RTT::endlog();
 	debugPort.disconnect();
 }
 
