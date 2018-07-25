@@ -149,8 +149,7 @@ private:
   /**
    * This map allows (hopefully) fast access to the data pointer based on the associated port interface.
    */
-  std::map<RTT::base::PortInterface *, std::shared_ptr<BarrierData>>
-      m_mapPortToDataPtr;
+  std::map<RTT::base::PortInterface *, std::shared_ptr<BarrierData>> m_mapPortToDataPtr;
 
   /**
    * Prints debug information including registered port, barrier conditions, and so on.
@@ -158,10 +157,16 @@ private:
   void printDebugInformation();
 
   /**
-   * Container for generated ports. Because I had some problems without such an container before.
+   * Container for generated input ports. Because I had some problems without such an container before.
    * Perhaps there is a smarter solution to this.
    */
   std::vector<std::shared_ptr<RTT::InputPort<bool>>> genPortEvInputPtrs;
+
+  /**
+   * Container for generated output ports. Because I had some problems without such an container before.
+   * Perhaps there is a smarter solution to this.
+   */
+  std::map<std::string, std::shared_ptr<RTT::OutputPort<bool>>> genPortOutputSignalPtrs;
 
   RTT::OutputPort<bool> debugPort;
 

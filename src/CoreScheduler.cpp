@@ -30,12 +30,21 @@ bool CoreScheduler::configureHookInternal()
 		RTT::TaskContext *new_block = this->getPeer(peerName);
 		if (new_block)
 		{
-			PRELOG(Debug) << "Seting slave activity for " << peerName << RTT::endlog();
+			PRELOG(Debug) << "Setting slave activity for " << peerName << RTT::endlog();
 			new_block->setActivity(
 				new RTT::extras::SlaveActivity(
 					this->getActivity(),
 					new_block->engine()));
 			m_tcList.push_back(new_block);
+			// Generate output signal port for each tc
+			PRELOG(Debug) << "Adding signal port for " << peerName << RTT::endlog();
+			std::string genPortName = "signal_port_" + peerName;
+			std::shared_ptr<RTT::OutputPort<bool>> genOutputPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>());
+			genOutputPort->setName(genPortName);
+			genOutputPort->doc("This port is used to signal when " + peerName + " finished its execution.");
+			genOutputPort->setDataSample(false);
+			genPortOutputSignalPtrs[peerName] = genOutputPort;
+			this->ports()->addPort(*(genOutputPort.get()));
 		}
 	}
 	return generatePortsAndData();
@@ -93,8 +102,18 @@ void CoreScheduler::updateHookInternal()
 	if ((!m_activeBarrierCondition) || (m_activeBarrierCondition->isFulfilled()))
 	{
 		PRELOG(Debug) << "Barrier condition fulfilled for " << m_activeTaskContextPtr->getName() << ". Call update()." << RTT::endlog();
-		m_activeTaskContextPtr->update(); // update() because they are slaves!
-
+		m_activeTaskContextPtr->update();																				   // update() because they are slaves!
+		std::shared_ptr<RTT::OutputPort<bool>> signalPort = genPortOutputSignalPtrs.at(m_activeTaskContextPtr->getName()); // assumption here is that the name of a component did not change in the mean time... otherwise I need to use a pointer as key!
+		if (signalPort)
+		{
+			PRELOG(Debug) << "signalling " << m_activeTaskContextPtr->getName() << " done." << RTT::endlog();
+			signalPort->write(true);
+		}
+		else
+		{
+			// TODO we can also check based on the configuration, that entirely internal tc's do not need to signal to the outside!
+			PRELOG(Error) << "No signal port for " << m_activeTaskContextPtr->getName() << "!" << RTT::endlog();
+		}
 		// Prepare for next iteration
 		m_activeTaskContextIndex++;
 		if (m_activeTaskContextIndex >= m_tcList.size())
@@ -220,6 +239,21 @@ void CoreScheduler::cleanupHookInternal()
 	PRELOG(Debug) << "Reset barrier condition map." << RTT::endlog();
 	m_barrierConditions.clear();
 
+	// reset ports
+	PRELOG(Debug) << "Reset all ports." << RTT::endlog();
+	std::vector<std::string> pns = this->ports()->getPortNames();
+
+	for (auto pn : pns)
+	{
+		auto p = this->getPort(pn);
+		if (p)
+		{
+			p->disconnect();
+			this->ports()->removePort(pn);
+			PRELOG(Debug) << "Removed port " << pn << RTT::endlog();
+		}
+	}
+
 	PRELOG(Debug) << "cleanupHook() successful." << RTT::endlog();
 }
 
@@ -272,7 +306,6 @@ bool CoreScheduler::generatePortsAndData()
 		{
 			// generate port
 			std::string genPortName = "ev_port_" + bcEntry + "_triggers_" + targetPortName;
-
 			std::shared_ptr<RTT::InputPort<bool>> genInputPort = std::shared_ptr<RTT::InputPort<bool>>(new RTT::InputPort<bool>());
 			genInputPort->setName(genPortName);
 			genInputPort->doc("This port is used to receive external triggers from " + bcEntry + " to " + targetPortName + ".");
