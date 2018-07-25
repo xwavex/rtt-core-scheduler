@@ -10,13 +10,15 @@
 #include <stdio.h>
 #include <rtt/extras/SlaveActivity.hpp>
 
+#define PRELOG(X) (RTT::log(RTT::X) << "[" << this->getName() << "] ")
+
 using namespace cosima;
 
 CoreScheduler::CoreScheduler(std::string const &name) : cogimon::RTTIntrospectionBase(name), m_activeTaskContextIndex(0)
 {
-	this->addOperation("printDebugInformation", &CoreScheduler::printDebugInformation, this, RTT::OwnThread).doc("Prints debug information including registered port, barrier conditions, and so on.");
+	this->addOperation("printDebugInformation", &CoreScheduler::printDebugInformation, this, RTT::ClientThread).doc("Prints debug information including registered port, barrier conditions, and so on.");
 	this->addOperation("registerBarrierCondition", &CoreScheduler::registerBarrierCondition, this).doc("Registers a new barrier condition for an as peer registered task context.");
-	this->addOperation("triggerEventData", &CoreScheduler::triggerEventData, this, RTT::OwnThread);
+	this->addOperation("triggerEventData", &CoreScheduler::triggerEventData, this, RTT::ClientThread);
 }
 
 bool CoreScheduler::configureHookInternal()
@@ -28,7 +30,7 @@ bool CoreScheduler::configureHookInternal()
 		RTT::TaskContext *new_block = this->getPeer(peerName);
 		if (new_block)
 		{
-			RTT::log(RTT::Warning) << "[" << this->getName() << "] set SLAVE activity for " << peerName << RTT::endlog();
+			PRELOG(Debug) << "Seting slave activity for " << peerName << RTT::endlog();
 			new_block->setActivity(
 				new RTT::extras::SlaveActivity(
 					this->getActivity(),
@@ -41,79 +43,66 @@ bool CoreScheduler::configureHookInternal()
 
 bool CoreScheduler::startHookInternal()
 {
-	// startTime = this->getOrocosTime();
-	// var_exec = 0;
-	// writePort(out_exec, var_exec);
-	// RTT::log(RTT::Debug) << this->getName() << "started" << RTT::endlog();
-	// if (S) // && treat_as_slaves ?
-	// {
-	// 	S->start();
-	// }
-	// if (R)
-	// {
-	// 	R->start();
-	// }
+	PRELOG(Debug) << "startHook() in progess..." << RTT::endlog();
 	if (m_tcList.size() <= 0)
 	{
-		// TODO Error
-		RTT::log(RTT::Error) << "[" << this->getName() << "] Error cannot start because I have no peers!" << RTT::endlog();
+		PRELOG(Error) << "Error cannot start because I have no peers!" << RTT::endlog();
 		return false;
 	}
 	m_activeTaskContextIndex = 0;
 	m_activeTaskContextPtr = m_tcList.at(m_activeTaskContextIndex);
 	if (!m_activeTaskContextPtr)
 	{
-		RTT::log(RTT::Error) << "[" << this->getName() << "] Error cannot start because retrieving the first peer failed!" << RTT::endlog();
+		PRELOG(Error) << "Error cannot start because retrieving the first peer failed!" << RTT::endlog();
 		return false;
 	}
 	m_activeBarrierCondition = m_barrierConditions[m_activeTaskContextPtr->getName()];
 
 	// Start all task contexts
+	PRELOG(Debug) << "Starting all peer task contexts." << RTT::endlog();
 	for (RTT::TaskContext *tc : m_tcList)
 	{
 		if (tc)
 		{
 			if (!tc->start())
 			{
-				RTT::log(RTT::Error) << "[" << this->getName() << "] Error cannot start because tc " + tc->getName() << " won't start." << RTT::endlog();
+				PRELOG(Error) << "Error cannot start because tc " + tc->getName() << " won't start!" << RTT::endlog();
 				// TODO stop all
 				return false;
 			}
 			else
 			{
-				// DLW debug
-				RTT::log(RTT::Warning) << "[" << this->getName() << "] Starting TC " + tc->getName() << RTT::endlog();
+				PRELOG(Debug) << " Starting tc " + tc->getName() << "." << RTT::endlog();
 			}
 		}
 		else
 		{
-			RTT::log(RTT::Error) << "[" << this->getName() << "] Error cannot start because tc is NULL." << RTT::endlog();
+			PRELOG(Error) << "Error cannot start because tc is NULL!" << RTT::endlog();
 			// TODO stop all
 			return false;
 		}
 	}
+	PRELOG(Debug) << "startHook() successful." << RTT::endlog();
 	return true;
 }
 
 void CoreScheduler::updateHookInternal()
 {
-	// if there is no bc for the tc or it is fulfilled, proceed with the execution.
+	PRELOG(Debug) << "updateHook() in progess..." << RTT::endlog();
 	// TODO not sure if double checking is really necessary...?
-	RTT::log(RTT::Warning) << ">>> UPDATE <<<" << RTT::endlog();
 	if ((!m_activeBarrierCondition) || (m_activeBarrierCondition->isFulfilled()))
 	{
-		RTT::log(RTT::Warning) << ">>> MIDDLE <<<" << RTT::endlog();
+		PRELOG(Debug) << "Barrier condition fulfilled for " << m_activeTaskContextPtr->getName() << ". Call update()." << RTT::endlog();
 		m_activeTaskContextPtr->update(); // update() because they are slaves!
 
 		// Prepare for next iteration
 		m_activeTaskContextIndex++;
-		RTT::log(RTT::Warning) << ">>> was " << m_activeTaskContextIndex - 1 << ", is " << m_activeTaskContextIndex << RTT::endlog();
 		if (m_activeTaskContextIndex >= m_tcList.size())
 		{
-			RTT::log(RTT::Warning) << ">>> NEXT ITERATION <<<" << RTT::endlog();
-			// This is how a new iteration begins!
+			PRELOG(Debug) << "Prepare for next iteration and reset all received barrier condition data." << RTT::endlog();
+			// This is how a new iteration begins.
 			m_activeTaskContextIndex = 0;
-			// Clear all until now received barrier data. Reset all barrier constraints
+			// Clear all until now received barrier data. Reset all barrier constraints.
 			for (auto &p_bcEntry : m_barrierConditions)
 			{
 				p_bcEntry.second->resetAllBarrierData();
@@ -122,22 +111,61 @@ void CoreScheduler::updateHookInternal()
 		m_activeTaskContextPtr = m_tcList.at(m_activeTaskContextIndex);
 		if (m_barrierConditions.find(m_activeTaskContextPtr->getName()) == m_barrierConditions.end())
 		{
-			// not found
+			// Case: We have not found a barrier condition for the execution of the next task context.
+			std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is the only thing that can change here.
 			m_activeBarrierCondition = 0;
-		} else
-		{
-			// found
-			m_activeBarrierCondition = m_barrierConditions[m_activeTaskContextPtr->getName()];
+			// Trigger the thread of the activity to execute its ExecutionEngine and the update() method.
+			PRELOG(Debug) << "updateHook() successful. Trigger next iteration, because we do not have a barrier condition for " << m_activeTaskContextPtr->getName() << "." << RTT::endlog();
+			this->trigger();
 		}
-		if (m_activeBarrierCondition)
+		else
 		{
-			RTT::log(RTT::Warning) << "m_activeBarrierCondition YES" << RTT::endlog();
-		} else {
-			RTT::log(RTT::Warning) << "m_activeBarrierCondition NO" << RTT::endlog();
+			// Case: We have found a barrier condition for the execution of the next task context.
+			std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is the only thing that can change here.
+			m_activeBarrierCondition = m_barrierConditions[m_activeTaskContextPtr->getName()];
+			PRELOG(Debug) << "Set barrier condition for " << m_activeTaskContextPtr->getName() << " active." << RTT::endlog();
 		}
 	}
 	// Do nothing if we haven't fulfilled a barrier condition yet...
-	RTT::log(RTT::Warning) << ">>> END <<<" << RTT::endlog();
+	PRELOG(Debug) << "updateHook() successful. Yield until woken by data event for barrier condition." << RTT::endlog();
+}
+
+bool CoreScheduler::dataOnPortHook(RTT::base::PortInterface *port)
+{
+	RTT::log(RTT::Warning) << "Received Data on " << port->getName() << RTT::endlog();
+	std::shared_ptr<BarrierData> data_var = m_mapPortToDataPtr[port];
+	if (data_var)
+	{
+		RTT::log(RTT::Warning) << "Data is real!" << RTT::endlog();
+		// TODO yay our data exists, otherwise it would be a great error
+		data_var->setDataState(true);
+		RTT::log(RTT::Warning) << "Data is set to " << data_var->getDataState() << RTT::endlog();
+		// check for fulfillment only if data is related to activeBarrierCondition
+		std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is also accessed in updateHook().
+		if (m_activeBarrierCondition)
+		{
+			bool in = m_activeBarrierCondition->isBarrierDataRelated(data_var);
+			bool fil = m_activeBarrierCondition->isFulfilled();
+			RTT::log(RTT::Warning) << "Data is related " << in << ", is fulfilled " << fil << RTT::endlog();
+			if (in && fil)
+			{
+				RTT::log(RTT::Warning) << "Data is fulfilled trigger!" << RTT::endlog();
+				return true;
+			}
+			else
+			{
+				RTT::log(RTT::Warning) << "Data is not related or fulfilled" << RTT::endlog();
+				return false;
+			}
+		}
+		else
+		{
+			RTT::log(RTT::Warning) << "Data ptr is m_activeBarrierCondition = 0" << RTT::endlog();
+			return false;
+		}
+	}
+	RTT::log(RTT::Warning) << "No data associated with port " << port->getName() << RTT::endlog();
+	return false; // Like this, we are going to ignore the input and do not trigger execution!
 }
 
 void CoreScheduler::stopHookInternal()
@@ -198,29 +226,6 @@ bool CoreScheduler::registerBarrierCondition(std::string targetTCName, std::stri
 void CoreScheduler::clearRegisteredBarrierConditions(std::string targetTCName)
 {
 	m_barrierConditions.erase(targetTCName);
-}
-
-bool CoreScheduler::dataOnPortHook(RTT::base::PortInterface *port)
-{
-	RTT::log(RTT::Warning) << "Received Data on " << port->getName() << RTT::endlog();
-	std::shared_ptr<BarrierData> data_var = m_mapPortToDataPtr[port];
-	if (data_var)
-	{
-		// TODO yay our data exists, otherwise it would be a great error
-		data_var->setDataState(true);
-
-		// check for fulfillment only if data is related to activeBarrierCondition
-		bool ret = m_activeBarrierCondition->isBarrierDataRelated(data_var);
-		if (m_activeBarrierCondition && ret)
-		{
-			bool ret2 = m_activeBarrierCondition->isFulfilled();
-			if (ret2)
-			{
-				return true;
-			}
-		}
-	}
-	return false; // Like this, we are going to ignore the input and do not trigger execution!
 }
 
 bool CoreScheduler::generatePortsAndData()

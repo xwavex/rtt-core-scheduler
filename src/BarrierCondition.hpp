@@ -29,6 +29,7 @@
 #include <vector>
 #include <map>
 #include <mutex>
+// #include <shared_mutex> // perhaps in the future...
 
 #include <rtt/Port.hpp>
 
@@ -118,7 +119,11 @@ private:
      */
   std::vector<std::shared_ptr<BarrierData>> m_barrierData;
 
-  std::mutex mutex;
+  /**
+   * Mutex to sync data access.
+   */
+  // shared_mutex // perhaps in the future...
+  std::mutex mutex; // mutable // ?
 };
 
 } // namespace cosima

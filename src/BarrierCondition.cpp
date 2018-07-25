@@ -59,16 +59,19 @@ const std::vector<std::string> BarrierCondition::getBarrierTaskContextNames()
 
 void BarrierCondition::addBarrierData(std::shared_ptr<BarrierData> data)
 {
+    std::lock_guard<std::mutex> lock(mutex);
     m_barrierData.push_back(data);
 }
 
 std::vector<std::shared_ptr<BarrierData>> BarrierCondition::getBarrierData()
 {
+    std::lock_guard<std::mutex> lock(mutex);
     return m_barrierData;
 }
 
 bool BarrierCondition::isFulfilled()
 {
+    std::lock_guard<std::mutex> lock(mutex);
     for (auto bd : m_barrierData)
     {
         if (!bd->getDataState())
@@ -81,16 +84,24 @@ bool BarrierCondition::isFulfilled()
 
 bool BarrierCondition::isBarrierDataRelated(std::shared_ptr<BarrierData> bd)
 {
-    // std::lock_guard<std::mutex> lock(mutex);
-    if (std::find(m_barrierData.begin(), m_barrierData.end(), bd) != m_barrierData.end())
+    int s = -1;
     {
-        return true;
+        std::lock_guard<std::mutex> lock(mutex);
+        s = m_barrierData.size();
+    }
+    for (int i = 0; i < s; i++)
+    {
+        if (m_barrierData.at(i) == bd)
+        {
+            return true;
+        }
     }
     return false;
 }
 
 void BarrierCondition::resetAllBarrierData()
 {
+    std::lock_guard<std::mutex> lock(mutex);
     for (auto bd : m_barrierData)
     {
         bd->setDataState(false);

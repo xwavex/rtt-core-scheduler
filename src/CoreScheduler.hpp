@@ -10,6 +10,7 @@
 #include <rtt/TaskContext.hpp>
 #include <string>
 #include <map>
+#include <mutex>
 
 #include <boost/lexical_cast.hpp>
 
@@ -163,6 +164,8 @@ private:
   std::vector<std::shared_ptr<RTT::InputPort<bool>>> genPortEvInputPtrs;
 
   RTT::OutputPort<bool> debugPort;
+
+  std::mutex mutex;
 };
 
 } // namespace cosima
