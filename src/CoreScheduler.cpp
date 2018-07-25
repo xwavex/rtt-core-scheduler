@@ -38,7 +38,12 @@ CoreScheduler::CoreScheduler(std::string const &name) : cogimon::RTTIntrospectio
 {
 	this->addOperation("printDebugInformation", &CoreScheduler::printDebugInformation, this, RTT::ClientThread).doc("Prints debug information including registered port, barrier conditions, and so on.");
 	this->addOperation("registerBarrierCondition", &CoreScheduler::registerBarrierCondition, this).doc("Registers a new barrier condition for an as peer registered task context.");
+
+	this->addOperation("registerBarrierConditionBatch", &CoreScheduler::registerBarrierConditionBatch, this).doc("Registers multiple new barrier conditions for an as peer registered task context.");
+
 	this->addOperation("triggerEventData", &CoreScheduler::triggerEventData, this, RTT::ClientThread);
+
+	this->addOperation("createSignalPort", &CoreScheduler::createSignalPort, this);
 }
 
 bool CoreScheduler::configureHookInternal()
@@ -57,17 +62,34 @@ bool CoreScheduler::configureHookInternal()
 					new_block->engine()));
 			m_tcList.push_back(new_block);
 			// Generate output signal port for each tc
-			PRELOG(Debug) << "Adding signal port for " << peerName << RTT::endlog();
-			std::string genPortName = "signal_port_" + peerName;
-			std::shared_ptr<RTT::OutputPort<bool>> genOutputPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>());
-			genOutputPort->setName(genPortName);
-			genOutputPort->doc("This port is used to signal when " + peerName + " finished its execution.");
-			genOutputPort->setDataSample(false);
-			genPortOutputSignalPtrs[peerName] = genOutputPort;
-			this->ports()->addPort(*(genOutputPort.get()));
+			// PRELOG(Debug) << "Adding signal port for " << peerName << RTT::endlog();
+			// std::string genPortName = "signal_port_" + peerName;
+			// std::shared_ptr<RTT::OutputPort<bool>> genOutputPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>());
+			// genOutputPort->setName(genPortName);
+			// genOutputPort->doc("This port is used to signal when " + peerName + " finished its execution.");
+			// genOutputPort->setDataSample(false);
+			// genPortOutputSignalPtrs[peerName] = genOutputPort;
+			// this->ports()->addPort(*(genOutputPort.get()));
 		}
 	}
 	return generatePortsAndData();
+}
+
+std::string CoreScheduler::createSignalPort(std::string const &tcName)
+{
+	RTT::TaskContext *tmp = this->getPeer(tcName);
+	if (!tmp)
+	{
+		return "";
+	}
+	std::string genPortName = "signal_port_" + tcName;
+	std::shared_ptr<RTT::OutputPort<bool>> genOutputPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>());
+	genOutputPort->setName(genPortName);
+	genOutputPort->doc("This port is used to signal when " + tcName + " finished its execution.");
+	genOutputPort->setDataSample(false);
+	genPortOutputSignalPtrs[tcName] = genOutputPort;
+	this->ports()->addPort(*(genOutputPort.get()));
+	return genPortName;
 }
 
 bool CoreScheduler::startHookInternal()
@@ -285,14 +307,18 @@ double CoreScheduler::getOrocosTime()
 
 bool CoreScheduler::registerBarrierConditionBatch(std::string targetTCName, std::vector<std::string> barrierTCNames)
 {
-	if (m_barrierConditions.count(targetTCName) > 0)
+	// if (m_barrierConditions.count(targetTCName) > 0)
+	// {
+	// 	// targetTCName already contained so we return, because we do not allow multiple barriers for one TC.
+	// 	return false;
+	// }
+	// std::shared_ptr<BarrierCondition> bc = std::shared_ptr<BarrierCondition>(new BarrierCondition(targetTCName));
+	// bc->setBarrierTaskContextNamesBatch(barrierTCNames);
+	// m_barrierConditions[targetTCName] = bc;
+	for (int i = 0; i < barrierTCNames.size(); i++)
 	{
-		// targetTCName already contained so we return, because we do not allow multiple barriers for one TC.
-		return false;
+		registerBarrierCondition(targetTCName, barrierTCNames[i]);
 	}
-	std::shared_ptr<BarrierCondition> bc = std::shared_ptr<BarrierCondition>(new BarrierCondition(targetTCName));
-	bc->setBarrierTaskContextNamesBatch(barrierTCNames);
-	m_barrierConditions[targetTCName] = bc;
 	return true;
 }
 

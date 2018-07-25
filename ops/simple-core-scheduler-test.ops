@@ -56,4 +56,20 @@ connect("SSS.out_trigger", "CS1.ev_port_S_triggers_R", cp3);
 
 CS1.start();
 #CS1.triggerEventData("ev_port_S_triggers_R", true);
+
+#########
+# Order + Core assignment + Precedence (vereinfachen? direct precendence?)
+#
+# 1) Get all peers that are of the type CoreScheduler.
+# 2) addPeer("CS1", "S")
+#    addPeer("CS1", "R")
+#    addPeer("CS2", "SSS")
+# 3) CS1.setExecutionSequence(["S", "R"]) # Can be done in service
+#    CS2.setExecutionSequence(["SSS"])    # Can be done in service
+# 4) Search in service for the conditions
+#    service.registerBarrierCondition("R", "S")
+#        > Delegate to the right
+#########
+
+
 #SSS.start();

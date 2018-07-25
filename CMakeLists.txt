@@ -74,4 +74,17 @@ target_link_libraries(${PROJECT_NAME}
    ${RST-RT_LIBRARIES}
 )
 
+orocos_service(${PROJECT_NAME}-service
+    src/service/CoreSchedulerService.cpp
+)
+
+target_link_libraries(${PROJECT_NAME}-service
+    ${USE_OROCOS_LIBRARIES}
+    ${OROCOS-RTT_LIBRARIES}
+    ${RTT-CORE-EXTENSIONS_LIBRARIES}
+    ${RST-RT_LIBRARIES}
+    # NOT SURE IF THIS IS A GOOD IDEA :D
+    ${PROJECT_NAME}
+)
+
 orocos_generate_package()

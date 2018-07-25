@@ -93,6 +93,11 @@ public:
   bool generatePortsAndData();
 
   /**
+   * Create signal port for a (included) task context.
+   */
+  std::string createSignalPort(std::string const &tcName);
+
+  /**
    * Debug external trigger mechanism.
    */
   void triggerEventData(std::string portName, bool value);
