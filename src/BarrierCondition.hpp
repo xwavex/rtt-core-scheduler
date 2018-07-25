@@ -23,6 +23,7 @@
  *     Bielefeld University
  *
  * ============================================================ */
+
 #pragma once
 
 #include <string>
