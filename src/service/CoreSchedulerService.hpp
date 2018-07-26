@@ -62,6 +62,11 @@ private:
   void setInvolvedCoreScheduler(std::vector<std::string> csNames);
 
   /**
+   * Print debug information.
+   */
+  void printDebugInformation();
+
+  /**
    * Do your thang!
    */
   bool configure();
@@ -85,6 +90,21 @@ private:
    * Store all manual registered core scheduler task contexts until we find a way to automatically detect those.
    */
   std::vector<std::string> m_csTaskContexts;
+
+  /**
+   * Storage for core scheduler task context pointers.
+   */
+  std::vector<RTT::TaskContext *> m_coreSchedulerPtrs;
+
+  /**
+   * Storage for normal task context pointers.
+   */
+  std::vector<RTT::TaskContext *> m_normalTcPtrs;
+
+  /**
+   * Storage for all port connections.
+   */
+  std::vector<std::pair<std::pair<RTT::TaskContext *, std::string>, std::pair<RTT::TaskContext *, std::string>>> portsToBeConnected;
 };
 
 } // namespace cosima
