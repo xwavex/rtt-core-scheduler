@@ -170,7 +170,7 @@ void CoreScheduler::updateHookInternal()
 			if (signalPort)
 			{
 				PRELOG(Debug) << "Signaling " << m_activeTaskContextPtr->getName() << " done." << RTT::endlog();
-				signalPort->write(true);
+				writePort(signalPort, true);
 			}
 			else
 			{
