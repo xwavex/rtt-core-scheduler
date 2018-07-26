@@ -77,11 +77,11 @@ bool CoreScheduler::configureHookInternal()
 
 std::string CoreScheduler::createSignalPort(std::string const &tcName)
 {
-	RTT::TaskContext *tmp = this->getPeer(tcName);
-	if (!tmp)
-	{
-		return "";
-	}
+	// RTT::TaskContext *tmp = this->getPeer(tcName);
+	// if (!tmp)
+	// {
+	// 	return "";
+	// }
 	std::string genPortName = "signal_port_" + tcName;
 	std::shared_ptr<RTT::OutputPort<bool>> genOutputPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>());
 	genOutputPort->setName(genPortName);

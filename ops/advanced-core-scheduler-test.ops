@@ -5,6 +5,8 @@ import("rst-rt_typekit");
 import("stdint");
 import("rtt-core-extensions");
 
+loadService("this","CoreSchedulerService")
+
 loadComponent("ir", "cosima::IntrospectionReporter");
 setActivityOnCPU("ir",0,1,ORO_SCHED_OTHER,3);
 
@@ -15,6 +17,14 @@ CS1.introspection.enableAllIntrospection(true);
 CS1.introspection.setCallTraceStorageSize(400);
 CS1.introspection.sendAtLeastOncePerXms(1000);
 CS1.introspection.enableAutoWriteExecutionInformation(false);
+
+### CoreScheduler 2
+loadComponent("CS2", "cosima::CoreScheduler");
+setActivityOnCPU("CS2", 0, 5, ORO_SCHED_OTHER, 1);
+CS2.introspection.enableAllIntrospection(true);
+CS2.introspection.setCallTraceStorageSize(400);
+CS2.introspection.sendAtLeastOncePerXms(1000);
+CS2.introspection.enableAutoWriteExecutionInformation(false);
 
 
 
@@ -33,28 +43,26 @@ S.introspection.enableAutoWriteExecutionInformation(false);
 S.configure();
 
 # Receiver is constrained by the Sender.
-CS1.registerBarrierCondition("R", "S");
+#CS1.registerBarrierCondition("R", "S");
 
-addPeer("CS1", "S");
-addPeer("CS1", "R");
-
-CS1.configure();
-
-CS1.printDebugInformation();
+#addPeer("CS1", "S");
+#addPeer("CS1", "R");
 
 loadComponent("SSS", "Sender");
-setActivityOnCPU("SSS",1.5,1,ORO_SCHED_OTHER,2);
 SSS.introspection.enableAllIntrospection(true);
 SSS.introspection.setCallTraceStorageSize(400);
 SSS.introspection.sendAtLeastOncePerXms(1000);
 SSS.introspection.enableAutoWriteExecutionInformation(false);
 SSS.configure();
 
+CoreSchedulerService.setInvolvedCoreScheduler(strings("CS1", "CS2"));
+CoreSchedulerService.setExecutionOrder("CS1", strings("S", "R"));
+CoreSchedulerService.setExecutionOrder("CS2", strings("SSS"));
 
-var ConnPolicy cp3;
-connect("SSS.out_trigger", "CS1.ev_port_S_triggers_R", cp3);
+CoreSchedulerService.addPTGFormula("S", "R");
+CoreSchedulerService.addPTGFormula("SSS", "R");
+#var ConnPolicy cp3;
+#connect("SSS.out_trigger", "CS1.ev_port_S_triggers_R", cp3);
 
-CS1.start();
-#CS1.triggerEventData("ev_port_S_triggers_R", true);
-
-#SSS.start();
+#CS1.start();
+#CS2.start();

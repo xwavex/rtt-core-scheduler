@@ -38,6 +38,7 @@ CoreSchedulerService::CoreSchedulerService(RTT::TaskContext *owner) : RTT::Servi
     this->addOperation("addPTGFormula", &CoreSchedulerService::addPTGFormula, this, RTT::OwnThread).doc("Add a PTG formula in the following form: source(before) -> target(after).").arg("sourceTcName", "Name of the task context that blocks targetTcName (needs to be a peer of exactly one core scheduler).").arg("targetTcName", "Name of the task context that is blocked by sourceTcName (needs to be a peer of exactly one core scheduler).");
     this->addOperation("setInvolvedCoreScheduler", &CoreSchedulerService::setInvolvedCoreScheduler, this, RTT::OwnThread).doc("Set the involved core schedulers.").arg("csNames", "Names [] of the core schedulers.");
     this->addOperation("printDebugInformation", &CoreSchedulerService::printDebugInformation, this).doc("Print debug information.");
+    this->addOperation("configure", &CoreSchedulerService::configure, this).doc("Do your thang!");
 }
 
 void CoreSchedulerService::setExecutionOrder(std::string const &csName, std::vector<std::string> tcNames)
@@ -205,6 +206,7 @@ bool CoreSchedulerService::configure()
             std::string genPortName = "ev_port_" + f.first + "_triggers_" + f.second;
 
             // store in portsToBeConnected
+            PRELOG(Debug) << "Store " << csPtr->getName() << "." << csSignalPort << " -> " << potential_cs2Ptr->getName() << "." << genPortName << "." << RTT::endlog();
             portsToBeConnected.push_back(std::make_pair(std::make_pair(csPtr, csSignalPort), std::make_pair(potential_cs2Ptr, genPortName)));
         }
     }
@@ -212,10 +214,33 @@ bool CoreSchedulerService::configure()
     // 3) Configure cs and potential_cs2 if not configured already
     for (int j = 0; j < m_coreSchedulerPtrs.size(); j++)
     {
-        if (!m_coreSchedulerPtrs[j]->isConfigured())
+        std::string cs_name = m_coreSchedulerPtrs[j]->getName();
+        // TODO strange that a component seems to be already configured...?
+        // if (!m_coreSchedulerPtrs[j]->isConfigured())
+        // {
+        // before configure, add the task contexts as peers
+        if (m_execution_order.count(cs_name) > 0)
         {
-            m_coreSchedulerPtrs[j]->configure();
+            for (auto tc_name_in_eo : m_execution_order[cs_name])
+            {
+                RTT::TaskContext *peerPtr = gOwner->getPeer(tc_name_in_eo);
+                if (peerPtr)
+                {
+                    m_coreSchedulerPtrs[j]->addPeer(peerPtr);
+                }
+                else
+                {
+                    PRELOG(Error) << "Peer with name " << tc_name_in_eo << " could not be added as peer to " << cs_name << "!" << RTT::endlog();
+                    return false;
+                }
+            }
         }
+        m_coreSchedulerPtrs[j]->configure();
+        // }
+        // else
+        // {
+        //     PRELOG(Error) << "Core Scheduler " << cs_name << " was already configure?!" << RTT::endlog();
+        // }
     }
 
     // 4) connect ports
