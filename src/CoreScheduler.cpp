@@ -101,13 +101,32 @@ bool CoreScheduler::startHookInternal()
 		return false;
 	}
 	m_activeTaskContextIndex = 0;
+	// Should work without problems, since we do not change the m_tcList during runtime!
 	m_activeTaskContextPtr = m_tcList.at(m_activeTaskContextIndex);
 	if (!m_activeTaskContextPtr)
 	{
 		PRELOG(Error) << "Error cannot start because retrieving the first peer failed!" << RTT::endlog();
 		return false;
 	}
-	m_activeBarrierCondition = m_barrierConditions[m_activeTaskContextPtr->getName()];
+
+	// always check before access or just use the at-operator with try-catch
+	// if (m_barrierConditions.count(m_activeTaskContextPtr->getName()) > 0)
+	// {
+	// 	m_activeBarrierCondition = m_barrierConditions[m_activeTaskContextPtr->getName()];
+	// }
+	// else
+	// {
+	// 	m_activeBarrierCondition.reset();
+	// }
+
+	try
+	{
+		m_activeBarrierCondition = m_barrierConditions.at(m_activeTaskContextPtr->getName());
+	}
+	catch (const std::out_of_range &e)
+	{
+		m_activeBarrierCondition.reset();
+	}
 
 	// Start all task contexts
 	PRELOG(Debug) << "Starting all peer task contexts." << RTT::endlog();
@@ -123,7 +142,7 @@ bool CoreScheduler::startHookInternal()
 			}
 			else
 			{
-				PRELOG(Debug) << " Starting tc " + tc->getName() << "." << RTT::endlog();
+				PRELOG(Debug) << " Started tc " + tc->getName() << "." << RTT::endlog();
 			}
 		}
 		else
@@ -144,18 +163,28 @@ void CoreScheduler::updateHookInternal()
 	if ((!m_activeBarrierCondition) || (m_activeBarrierCondition->isFulfilled()))
 	{
 		PRELOG(Debug) << "Barrier condition fulfilled for " << m_activeTaskContextPtr->getName() << ". Call update()." << RTT::endlog();
-		m_activeTaskContextPtr->update();																				   // update() because they are slaves!
-		std::shared_ptr<RTT::OutputPort<bool>> signalPort = genPortOutputSignalPtrs.at(m_activeTaskContextPtr->getName()); // assumption here is that the name of a component did not change in the mean time... otherwise I need to use a pointer as key!
-		if (signalPort)
+		m_activeTaskContextPtr->update();	// update() because they are slaves!
+		try
 		{
-			PRELOG(Debug) << "signalling " << m_activeTaskContextPtr->getName() << " done." << RTT::endlog();
-			signalPort->write(true);
+			std::shared_ptr<RTT::OutputPort<bool>> signalPort = genPortOutputSignalPtrs.at(m_activeTaskContextPtr->getName());	// assumption here is that the name of a component did not change in the mean time... otherwise I need to use a pointer as key!
+			if (signalPort)
+			{
+				PRELOG(Debug) << "Signaling " << m_activeTaskContextPtr->getName() << " done." << RTT::endlog();
+				signalPort->write(true);
+			}
+			else
+			{
+				// TODO we can also check based on the configuration, that entirely internal tc's do not need to signal to the outside!
+				PRELOG(Error) << "No signal port for " << m_activeTaskContextPtr->getName() << "!" << RTT::endlog();
+			}
 		}
-		else
+		catch (const std::out_of_range &e)
 		{
-			// TODO we can also check based on the configuration, that entirely internal tc's do not need to signal to the outside!
-			PRELOG(Error) << "No signal port for " << m_activeTaskContextPtr->getName() << "!" << RTT::endlog();
+			// This would only be a problem is the port for an EXTERNAL trigger would not be found.
+
+			// PRELOG(Error) << "Could not signal port for " << m_activeTaskContextPtr->getName() << ", because port was not found in genPortOutputSignalPtrs, which is very strange o.O!" << RTT::endlog();
 		}
+
 		// Prepare for next iteration
 		m_activeTaskContextIndex++;
 		if (m_activeTaskContextIndex >= m_tcList.size())
@@ -166,9 +195,16 @@ void CoreScheduler::updateHookInternal()
 			// Clear all until now received barrier data. Reset all barrier constraints.
 			for (auto &p_bcEntry : m_barrierConditions)
 			{
-				p_bcEntry.second->resetAllBarrierData();
+				if (p_bcEntry.second)
+				{
+					p_bcEntry.second->resetAllBarrierData();
+				} else
+				{
+					PRELOG(Error) << "Clear non existent pointer: " << p_bcEntry.first << ", ptr = " << p_bcEntry.second << "!" << RTT::endlog();
+				}
 			}
 		}
+		// Should work without problems, since we do not change the m_tcList during runtime!
 		m_activeTaskContextPtr = m_tcList.at(m_activeTaskContextIndex);
 		if (m_barrierConditions.find(m_activeTaskContextPtr->getName()) == m_barrierConditions.end())
 		{
