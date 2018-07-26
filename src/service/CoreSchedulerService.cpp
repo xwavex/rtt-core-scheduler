@@ -25,7 +25,7 @@
  * ============================================================ */
 
 #include "CoreSchedulerService.hpp"
-#include "CoreScheduler.hpp"
+#include <rtt/OperationCaller.hpp>
 
 using namespace cosima;
 
@@ -36,9 +36,7 @@ CoreSchedulerService::CoreSchedulerService(RTT::TaskContext *owner) : RTT::Servi
     // this->addOperation("newTrajectoryModel", &GazeboCommunication::newTrajectoryModel, this, RTT::OwnThread).doc("Adds trajectory of the specific model.").arg("model", "Name of the model");
     // this->addOperation("newTrajectoryLink", &GazeboCommunication::newTrajectoryLink, this, RTT::OwnThread).doc("Add tajectory to link of specific model.").arg("model", "Name of the model").arg("link", "Name of the link");
 
-    // this->addOperation("delTrajectory", &GazeboCommunication::delTrajectoryModel, this, RTT::OwnThread).doc("Deletes trajectory of the specific object.").arg("visual", "Name of the visualobject");
-    // this->addOperation("delTrajectoryModel", &GazeboCommunication::delTrajectoryModel, this, RTT::OwnThread).doc("Deletes trajectory of the specific model.").arg("model", "Name of the model");
-    // this->addOperation("delTrajectoryLink", &GazeboCommunication::delTrajectoryLink, this, RTT::OwnThread).doc("Deletes trajectory of the specific link.").arg("model", "Name of the model").arg("link", "Name of the link");
+    this->addOperation("setInvolvedCoreScheduler", &CoreSchedulerService::setInvolvedCoreScheduler, this, RTT::OwnThread).doc("Set the involved core schedulers.").arg("csNames", "Names [] of the core schedulers.");
 }
 
 void CoreSchedulerService::setExecutionOrder(std::string const &csName, std::vector<std::string> tcNames)
@@ -52,6 +50,11 @@ void CoreSchedulerService::addPTGFormula(std::string const &sourceTcName, std::s
     m_ptg_formulas.push_back(std::make_pair(sourceTcName, targetTcName));
 }
 
+void CoreSchedulerService::setInvolvedCoreScheduler(std::vector<std::string> csNames)
+{
+    m_csTaskContexts = csNames;
+}
+
 bool CoreSchedulerService::configure()
 {
     // Separate the peer task contexts.
@@ -62,11 +65,14 @@ bool CoreSchedulerService::configure()
         RTT::TaskContext *tc = gOwner->getPeer(peerName);
         if (tc)
         {
-            if (CoreScheduler *cs = dynamic_cast<CoreScheduler *>(tc))
+            //if (CoreScheduler *cs = dynamic_cast<CoreScheduler *>(tc))
+            if (std::find(m_csTaskContexts.begin(), m_csTaskContexts.end(), peerName) != m_csTaskContexts.end())
             {
                 // Core scheduler task context.
                 coreSchedulerPtrs.push_back(tc);
-            } else {
+            }
+            else
+            {
                 // Normal task context.
                 normalTcPtrs.push_back(tc);
             }

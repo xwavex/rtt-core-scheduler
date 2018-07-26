@@ -56,6 +56,11 @@ private:
      */
     void addPTGFormula(std::string const &sourceTcName, std::string const &targetTcName);
 
+  /**
+     * Set the involved core schedulers.
+     */
+  void setInvolvedCoreScheduler(std::vector<std::string> csNames);
+
     /**
      * Do your thang!
      */
@@ -75,6 +80,11 @@ private:
      * Store for the PTG formulas.
      */
     std::vector<std::pair<std::string, std::string>> m_ptg_formulas;
+
+  /**
+     * Store all manual registered core scheduler task contexts until we find a way to automatically detect those.
+     */
+  std::vector<std::string> m_csTaskContexts;
 };
 
 } // namespace cosima
