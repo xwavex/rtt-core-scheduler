@@ -32,10 +32,8 @@ using namespace cosima;
 CoreSchedulerService::CoreSchedulerService(RTT::TaskContext *owner) : RTT::Service("CoreSchedulerService", owner)
 {
     this->gOwner = owner;
-    // this->addOperation("newTrajectory", &GazeboCommunication::newTrajectoryModel, this, RTT::OwnThread).doc("Adds trajectory of the specific object.").arg("visual", "Name of the visualobject");
-    // this->addOperation("newTrajectoryModel", &GazeboCommunication::newTrajectoryModel, this, RTT::OwnThread).doc("Adds trajectory of the specific model.").arg("model", "Name of the model");
-    // this->addOperation("newTrajectoryLink", &GazeboCommunication::newTrajectoryLink, this, RTT::OwnThread).doc("Add tajectory to link of specific model.").arg("model", "Name of the model").arg("link", "Name of the link");
-
+    this->addOperation("setExecutionOrder", &CoreSchedulerService::setExecutionOrder, this, RTT::OwnThread).doc("Set the execution order of the task contexts for a specific core scheduler.").arg("csName", "Name of the core scheduler task context.").arg("tcNames", "Names [] of the task contexts executed by the core scheduler.");
+    this->addOperation("addPTGFormula", &CoreSchedulerService::addPTGFormula, this, RTT::OwnThread).doc("Add a PTG formula in the following form: source(before) -> target(after).").arg("sourceTcName", "Name of the task context that blocks targetTcName (needs to be a peer of exactly one core scheduler).").arg("targetTcName", "Name of the task context that is blocked by sourceTcName (needs to be a peer of exactly one core scheduler).");
     this->addOperation("setInvolvedCoreScheduler", &CoreSchedulerService::setInvolvedCoreScheduler, this, RTT::OwnThread).doc("Set the involved core schedulers.").arg("csNames", "Names [] of the core schedulers.");
 }
 
@@ -103,6 +101,8 @@ bool CoreSchedulerService::configure()
         }
     }
     // Remove missing task context from m_ptg_formulas.
+    std::vector<std::pair<std::pair<RTT::TaskContext *, std::string>, std::pair<RTT::TaskContext *, std::string>>> portsToBeConnected;
+
     for (auto it = m_ptg_formulas.begin(), e = m_ptg_formulas.end(); it != e;)
     {
         bool found_first = false;
@@ -200,28 +200,46 @@ bool CoreSchedulerService::configure()
             // TODO BIG HACK BUT AS LONG AS WE DO NOT CHANGE THE NAMING CONVERNTION THIS WILL WORK!
             std::string genPortName = "ev_port_" + f.first + "_triggers_" + f.second;
 
-            // ############## do below in a separate loop!!!
-            // 3) Configure cs and potential_cs2 if not configured already
-            if (!csPtr->isConfigured())
-            {
-                csPtr->configure();
-            }
-            if (!potential_cs2Ptr->isConfigured())
-            {
-                potential_cs2Ptr->configure();
-            }
+            // store in portsToBeConnected
+            portsToBeConnected.push_back(std::make_pair(std::make_pair(csPtr, csSignalPort), std::make_pair(potential_cs2Ptr, genPortName)));
+        }
+    }
 
-            // 4) connect ports
-            RTT::log(RTT::Error) << "Connect " << csSignalPort << " to " << genPortName << "." << RTT::endlog();
+    // 3) Configure cs and potential_cs2 if not configured already
+    for (int j = 0; j < coreSchedulerPtrs.size(); j++)
+    {
+        if (!coreSchedulerPtrs[j]->isConfigured())
+        {
+            coreSchedulerPtrs[j]->configure();
+        }
+    }
 
-            RTT::base::PortInterface *csP = csPtr->ports()->getPort(csSignalPort);
-            RTT::base::PortInterface *potential_cs2P = potential_cs2Ptr->ports()->getPort(csSignalPort);
-            if (!csP || !potential_cs2P)
+    // 4) connect ports
+    for (auto const &entry : portsToBeConnected)
+    {
+        RTT::TaskContext *sTC = entry.first.first;
+        std::string sP = entry.first.second;
+
+        RTT::TaskContext *tTC = entry.second.first;
+        std::string tP = entry.second.second;
+
+        if (sTC && tTC)
+        {
+            RTT::log(RTT::Warning) << "Connect " << sTC->getName() << "." << sP << " -> " << tTC->getName() << "." << tP << "." << RTT::endlog();
+            RTT::base::PortInterface *sPptr = sTC->ports()->getPort(sP);
+            RTT::base::PortInterface *tPptr = tTC->ports()->getPort(tP);
+            if (!sPptr || !tPptr)
             {
-                RTT::log(RTT::Error) << "Not ports found to connect!" << RTT::endlog();
+                RTT::log(RTT::Error) << "No port pointers found to connect!" << RTT::endlog();
                 return false;
             }
-            csP->connectTo(potential_cs2P);
+            bool pRet = sPptr->connectTo(tPptr);
+            RTT::log(RTT::Warning) << "Connected " << sTC->getName() << "." << sP << " -> " << tTC->getName() << "." << tP << " = " << pRet << "." << RTT::endlog();
+        }
+        else
+        {
+            RTT::log(RTT::Error) << "Connecting ports, cannot find sTC(" << sTC << ") or rTC(" << tTC << ")!" << RTT::endlog();
+            return false;
         }
     }
     return true;

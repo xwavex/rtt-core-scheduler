@@ -40,50 +40,50 @@ class CoreSchedulerService : public RTT::Service
 {
 
 public:
-    /**
-     * Constructor.
-     */
-    CoreSchedulerService(RTT::TaskContext *owner);
+  /**
+   * Constructor.
+   */
+  CoreSchedulerService(RTT::TaskContext *owner);
 
 private:
-    /**
-     * Set the execution order of the task contexts for a specific core scheduler.
-     */
-    void setExecutionOrder(std::string const &csName, std::vector<std::string> tcNames);
-
-    /**
-     * Add a PTG formula in the following form: source(before) -> target(after).
-     */
-    void addPTGFormula(std::string const &sourceTcName, std::string const &targetTcName);
+  /**
+   * Set the execution order of the task contexts for a specific core scheduler.
+   */
+  void setExecutionOrder(std::string const &csName, std::vector<std::string> tcNames);
 
   /**
-     * Set the involved core schedulers.
-     */
+   * Add a PTG formula in the following form: source(before) -> target(after).
+   */
+  void addPTGFormula(std::string const &sourceTcName, std::string const &targetTcName);
+
+  /**
+   * Set the involved core schedulers.
+   */
   void setInvolvedCoreScheduler(std::vector<std::string> csNames);
 
-    /**
-     * Do your thang!
-     */
-    bool configure();
-
-    /**
-     * Owner pointer.
-     */
-    RTT::TaskContext *gOwner;
-
-    /**
-     * Store for the execution order of the core scheduler.
-     */
-    std::map<std::string, std::vector<std::string>> m_execution_order;
-
-    /**
-     * Store for the PTG formulas.
-     */
-    std::vector<std::pair<std::string, std::string>> m_ptg_formulas;
+  /**
+   * Do your thang!
+   */
+  bool configure();
 
   /**
-     * Store all manual registered core scheduler task contexts until we find a way to automatically detect those.
-     */
+   * Owner pointer.
+   */
+  RTT::TaskContext *gOwner;
+
+  /**
+   * Store for the execution order of the core scheduler.
+   */
+  std::map<std::string, std::vector<std::string>> m_execution_order;
+
+  /**
+   * Store for the PTG formulas.
+   */
+  std::vector<std::pair<std::string, std::string>> m_ptg_formulas;
+
+  /**
+   * Store all manual registered core scheduler task contexts until we find a way to automatically detect those.
+   */
   std::vector<std::string> m_csTaskContexts;
 };
 
