@@ -125,7 +125,7 @@ private:
   /**
    * Stores the execution order of the peer TCs. This is used to restructure m_tcList.
    */
-  std::vector<std::string> executionOrderOfTCs;
+  std::vector<std::string> m_executionOrderOfTCs;
 
   ///////////////////
   /// EXAMPLE:
@@ -212,6 +212,12 @@ private:
    * Operation for setting m_doNextIterationWithoutTrigger.
    */
   void alwaysYieldAfterEachComponentExecution(bool alwaysYield);
+
+  /**
+   * Global trigger port, can only be used by the the master core scheduler,
+   * which contains the component that is last executed in a PTG.
+   */
+  std::shared_ptr<RTT::OutputPort<bool>> globalTriggerPort;
 
   RTT::OutputPort<bool> debugPort;
 

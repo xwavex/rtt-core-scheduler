@@ -52,7 +52,7 @@ CoreScheduler::CoreScheduler(std::string const &name) : cogimon::RTTIntrospectio
 
 void CoreScheduler::setExecutionOrder(std::vector<std::string> eo)
 {
-	executionOrderOfTCs = eo;
+	m_executionOrderOfTCs = eo;
 }
 
 void CoreScheduler::alwaysYieldAfterEachComponentExecution(bool alwaysYield)
@@ -63,9 +63,9 @@ void CoreScheduler::alwaysYieldAfterEachComponentExecution(bool alwaysYield)
 bool CoreScheduler::configureHookInternal()
 {
 	m_tcList.clear();
-	if (executionOrderOfTCs.size() > 0)
+	if (m_executionOrderOfTCs.size() > 0)
 	{
-		for (auto peerName : executionOrderOfTCs)
+		for (auto peerName : m_executionOrderOfTCs)
 		{
 			RTT::TaskContext *new_block = this->getPeer(peerName);
 			if (new_block)
@@ -352,6 +352,10 @@ void CoreScheduler::cleanupHookInternal()
 	// reset m_barrierConditions
 	PRELOG(Debug) << "Reset barrier condition map." << RTT::endlog();
 	m_barrierConditions.clear();
+
+	// reset m_executionOrderOfTCs
+	PRELOG(Debug) << "Reset explicit execution order." << RTT::endlog();
+	m_executionOrderOfTCs.clear();
 
 	// reset ports
 	PRELOG(Debug) << "Reset all ports." << RTT::endlog();
