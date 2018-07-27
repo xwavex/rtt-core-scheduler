@@ -102,6 +102,11 @@ public:
    */
   void triggerEventData(std::string portName, bool value);
 
+  /**
+   * Set the execution order of the peer task contexts.
+   */
+  void setExecutionOrder(std::vector<std::string> eo);
+
 private:
   // RTT::InputPort<bool> in_A_port;
   // RTT::InputPort<bool> in_B_port;
@@ -116,6 +121,11 @@ private:
    * TCs are represented by the registered peers.
    */
   std::vector<RTT::TaskContext *> m_tcList;
+
+  /**
+   * Stores the execution order of the peer TCs. This is used to restructure m_tcList.
+   */
+  std::vector<std::string> executionOrderOfTCs;
 
   ///////////////////
   /// EXAMPLE:
@@ -149,12 +159,6 @@ private:
    * Map access to all registered barrier conditions.
    */
   std::map<std::string, std::shared_ptr<BarrierCondition>> m_barrierConditions;
-  // TODO PORTS GLOBAL UEBER BARRIERS GENERIEREN!
-
-  // std::map < std::shared_ptr<RTT::base::InputPortInterface>, std::shared_ptr<bool> >
-  // std::shared_ptr<bool> currentState.getExternalVar( std::shared_ptr<RTT::base::InputPortInterface> );
-  // void currentState.setExternalVar(std::shared_ptr<RTT::base::InputPortInterface>, true/false);
-  // TODO WIE MACHE ICH DAS FUER LOKALE VARS?
 
   /**
    * With this we encode the state information.
@@ -192,6 +196,11 @@ private:
    * Perhaps there is a smarter solution to this.
    */
   std::map<std::string, std::shared_ptr<RTT::OutputPort<bool>>> genPortOutputSignalPtrs;
+
+  /**
+   * Set the activity of the passed task context to a new SlaveActivity.
+   */
+  void setSlaveActivityFor(RTT::TaskContext *new_block);
 
   RTT::OutputPort<bool> debugPort;
 

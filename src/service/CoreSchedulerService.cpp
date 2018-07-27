@@ -234,7 +234,19 @@ bool CoreSchedulerService::configure()
                     return false;
                 }
             }
+
+            // set execution order explicitely
+            if (!m_coreSchedulerPtrs[j]->getOperation("setExecutionOrder"))
+            {
+                PRELOG(Error) << "Operation setExecutionOrder (in cs) " << cs_name << " could not be accessed!" << RTT::endlog();
+                return false;
+            }
+            RTT::OperationCaller<void(std::vector<std::string>)> setExecutionOrder_meth = m_coreSchedulerPtrs[j]->getOperation("setExecutionOrder");
+            // setExecutionOrder_meth.ready?
+            setExecutionOrder_meth(m_execution_order[cs_name]);
         }
+
+        // configure core scheduler
         m_coreSchedulerPtrs[j]->configure();
         // }
         // else

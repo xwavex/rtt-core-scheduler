@@ -44,44 +44,62 @@ CoreScheduler::CoreScheduler(std::string const &name) : cogimon::RTTIntrospectio
 	this->addOperation("triggerEventData", &CoreScheduler::triggerEventData, this, RTT::ClientThread);
 
 	this->addOperation("createSignalPort", &CoreScheduler::createSignalPort, this);
+
+	this->addOperation("setExecutionOrder", &CoreScheduler::setExecutionOrder, this).doc("Set the execution order of the peer task contexts.").arg("eo", "Task context names in the order of execution.");
+}
+
+void CoreScheduler::setExecutionOrder(std::vector<std::string> eo)
+{
+	executionOrderOfTCs = eo;
 }
 
 bool CoreScheduler::configureHookInternal()
 {
 	m_tcList.clear();
-	std::vector<std::string> peerList = this->getPeerList();
-	for (auto peerName : peerList)
+	if (executionOrderOfTCs.size() > 0)
 	{
-		RTT::TaskContext *new_block = this->getPeer(peerName);
-		if (new_block)
+		for (auto peerName : executionOrderOfTCs)
 		{
-			PRELOG(Debug) << "Setting slave activity for " << peerName << RTT::endlog();
-			new_block->setActivity(
-				new RTT::extras::SlaveActivity(
-					this->getActivity(),
-					new_block->engine()));
-			m_tcList.push_back(new_block);
-			// Generate output signal port for each tc
-			// PRELOG(Debug) << "Adding signal port for " << peerName << RTT::endlog();
-			// std::string genPortName = "signal_port_" + peerName;
-			// std::shared_ptr<RTT::OutputPort<bool>> genOutputPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>());
-			// genOutputPort->setName(genPortName);
-			// genOutputPort->doc("This port is used to signal when " + peerName + " finished its execution.");
-			// genOutputPort->setDataSample(false);
-			// genPortOutputSignalPtrs[peerName] = genOutputPort;
-			// this->ports()->addPort(*(genOutputPort.get()));
+			RTT::TaskContext *new_block = this->getPeer(peerName);
+			if (new_block)
+			{
+				setSlaveActivityFor(new_block);
+			}
+			else
+			{
+				PRELOG(Error) << "Peer " << peerName << " in execution order not found in peer list!" << RTT::endlog();
+				return false;
+			}
+		}
+	}
+	else
+	{
+		PRELOG(Warning) << "Not execution order set by setExecutionOrder operation. Therefore just use the peers as in peer list." << RTT::endlog();
+		std::vector<std::string> peerList = this->getPeerList();
+		for (auto peerName : peerList)
+		{
+			RTT::TaskContext *new_block = this->getPeer(peerName);
+			if (new_block)
+			{
+				setSlaveActivityFor(new_block);
+			}
 		}
 	}
 	return generatePortsAndData();
 }
 
+void CoreScheduler::setSlaveActivityFor(RTT::TaskContext *new_block)
+{
+	PRELOG(Debug) << "Setting slave activity for " << new_block->getName() << RTT::endlog();
+	new_block->setActivity(
+		new RTT::extras::SlaveActivity(
+			this->getActivity(),
+			new_block->engine()));
+	m_tcList.push_back(new_block);
+}
+
 std::string CoreScheduler::createSignalPort(std::string const &tcName)
 {
-	// RTT::TaskContext *tmp = this->getPeer(tcName);
-	// if (!tmp)
-	// {
-	// 	return "";
-	// }
 	std::string genPortName = "signal_port_" + tcName;
 	std::shared_ptr<RTT::OutputPort<bool>> genOutputPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>());
 	genOutputPort->setName(genPortName);
@@ -113,10 +131,6 @@ bool CoreScheduler::startHookInternal()
 	// if (m_barrierConditions.count(m_activeTaskContextPtr->getName()) > 0)
 	// {
 	// 	m_activeBarrierCondition = m_barrierConditions[m_activeTaskContextPtr->getName()];
-	// }
-	// else
-	// {
-	// 	m_activeBarrierCondition.reset();
 	// }
 
 	try
@@ -163,10 +177,10 @@ void CoreScheduler::updateHookInternal()
 	if ((!m_activeBarrierCondition) || (m_activeBarrierCondition->isFulfilled()))
 	{
 		PRELOG(Debug) << "Barrier condition fulfilled for " << m_activeTaskContextPtr->getName() << ". Call update()." << RTT::endlog();
-		m_activeTaskContextPtr->update();	// update() because they are slaves!
+		m_activeTaskContextPtr->update(); // update() because they are slaves!
 		try
 		{
-			std::shared_ptr<RTT::OutputPort<bool>> signalPort = genPortOutputSignalPtrs.at(m_activeTaskContextPtr->getName());	// assumption here is that the name of a component did not change in the mean time... otherwise I need to use a pointer as key!
+			std::shared_ptr<RTT::OutputPort<bool>> signalPort = genPortOutputSignalPtrs.at(m_activeTaskContextPtr->getName()); // assumption here is that the name of a component did not change in the mean time... otherwise I need to use a pointer as key!
 			if (signalPort)
 			{
 				PRELOG(Debug) << "Signaling " << m_activeTaskContextPtr->getName() << " done." << RTT::endlog();
@@ -198,7 +212,8 @@ void CoreScheduler::updateHookInternal()
 				if (p_bcEntry.second)
 				{
 					p_bcEntry.second->resetAllBarrierData();
-				} else
+				}
+				else
 				{
 					PRELOG(Error) << "Clear non existent pointer: " << p_bcEntry.first << ", ptr = " << p_bcEntry.second << "!" << RTT::endlog();
 				}
