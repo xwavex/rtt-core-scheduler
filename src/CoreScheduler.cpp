@@ -34,7 +34,7 @@
 
 using namespace cosima;
 
-CoreScheduler::CoreScheduler(std::string const &name) : cogimon::RTTIntrospectionBase(name), m_activeTaskContextIndex(0)
+CoreScheduler::CoreScheduler(std::string const &name) : cogimon::RTTIntrospectionBase(name), m_activeTaskContextIndex(0), m_doNextIterationWithoutTrigger(true)
 {
 	this->addOperation("printDebugInformation", &CoreScheduler::printDebugInformation, this, RTT::ClientThread).doc("Prints debug information including registered port, barrier conditions, and so on.");
 	this->addOperation("registerBarrierCondition", &CoreScheduler::registerBarrierCondition, this).doc("Registers a new barrier condition for an as peer registered task context.");
@@ -46,11 +46,18 @@ CoreScheduler::CoreScheduler(std::string const &name) : cogimon::RTTIntrospectio
 	this->addOperation("createSignalPort", &CoreScheduler::createSignalPort, this);
 
 	this->addOperation("setExecutionOrder", &CoreScheduler::setExecutionOrder, this).doc("Set the execution order of the peer task contexts.").arg("eo", "Task context names in the order of execution.");
+
+	this->addOperation("alwaysYieldAfterEachComponentExecution", &CoreScheduler::alwaysYieldAfterEachComponentExecution, this).doc("Decide if the core scheduler yields after each component execution.").arg("alwaysYield", "true or false.");
 }
 
 void CoreScheduler::setExecutionOrder(std::vector<std::string> eo)
 {
 	executionOrderOfTCs = eo;
+}
+
+void CoreScheduler::alwaysYieldAfterEachComponentExecution(bool alwaysYield)
+{
+	m_doNextIterationWithoutTrigger = !alwaysYield;
 }
 
 bool CoreScheduler::configureHookInternal()
@@ -173,6 +180,7 @@ bool CoreScheduler::startHookInternal()
 void CoreScheduler::updateHookInternal()
 {
 	PRELOG(Debug) << "updateHook() in progess..." << RTT::endlog();
+next_iteration_without_trigger:
 	// TODO not sure if double checking is really necessary...?
 	if ((!m_activeBarrierCondition) || (m_activeBarrierCondition->isFulfilled()))
 	{
@@ -223,12 +231,25 @@ void CoreScheduler::updateHookInternal()
 		m_activeTaskContextPtr = m_tcList.at(m_activeTaskContextIndex);
 		if (m_barrierConditions.find(m_activeTaskContextPtr->getName()) == m_barrierConditions.end())
 		{
+			std::string debug_out_name = "";
 			// Case: We have not found a barrier condition for the execution of the next task context.
-			std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is the only thing that can change here.
-			m_activeBarrierCondition = 0;
+			{
+				std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is the only thing that can change here.
+				m_activeBarrierCondition = 0;
+				debug_out_name = m_activeTaskContextPtr->getName();
+			}
 			// Trigger the thread of the activity to execute its ExecutionEngine and the update() method.
-			PRELOG(Debug) << "updateHook() successful. Trigger next iteration, because we do not have a barrier condition for " << m_activeTaskContextPtr->getName() << "." << RTT::endlog();
-			this->trigger(); // TODO check for valid execution
+			// only do this if m_activeTaskContextIndex > 0, because otherwise we go other to the next iteration and need to exit the updateHook().
+			if (m_activeTaskContextIndex > 0 && m_doNextIterationWithoutTrigger)
+			{
+				PRELOG(Debug) << "Trigger next component execution, because we do not have a barrier condition for " << debug_out_name << "." << RTT::endlog();
+				goto next_iteration_without_trigger;
+			}
+			else
+			{
+				PRELOG(Debug) << "updateHook() successful. Trigger next iteration, because we do not have a barrier condition for " << debug_out_name << "." << RTT::endlog();
+				this->trigger(); // TODO check for valid execution
+			}
 		}
 		else
 		{

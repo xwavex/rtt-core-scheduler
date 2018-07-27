@@ -202,6 +202,17 @@ private:
    */
   void setSlaveActivityFor(RTT::TaskContext *new_block);
 
+  /**
+   * Condition variable to decide if we yield after every component execution,
+   * or only after we found a barrier and execute unconditioned execution sequentially in the same updateHook().
+   */
+  bool m_doNextIterationWithoutTrigger;
+
+  /**
+   * Operation for setting m_doNextIterationWithoutTrigger.
+   */
+  void alwaysYieldAfterEachComponentExecution(bool alwaysYield);
+
   RTT::OutputPort<bool> debugPort;
 
   std::mutex mutex;
