@@ -61,5 +61,13 @@ CoreSchedulerService.addPTGFormula("SSS", "R");
 
 CoreSchedulerService.configure();
 
+connectPeers("ir","CS1");
+connectPeers("ir","CS2");
+connectPeers("ir","S");
+connectPeers("ir","R");
+connectPeers("ir","SSS");
+ir.configure()
+ir.start()
+
 CS1.start();
 CS2.start();
