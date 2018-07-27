@@ -214,10 +214,26 @@ private:
   void alwaysYieldAfterEachComponentExecution(bool alwaysYield);
 
   /**
-   * Global trigger port, can only be used by the the master core scheduler,
+   * Global trigger port, can only be used by the master core scheduler,
    * which contains the component that is last executed in a PTG.
    */
   std::shared_ptr<RTT::OutputPort<bool>> globalTriggerPort;
+
+  /**
+   * Operation to create globalTriggerPort.
+   */
+  std::string createGlobalSignalPort();
+
+  /**
+   * Create global event port that when called triggers the dataOnPort mechanism.
+   * This is used to receive anotification from the core scheduler master.
+   */
+  std::string createGlobalEventPort();
+
+  /**
+   * Storage for global event receive ports that can only be used by non master core scheduler.
+   */
+  std::shared_ptr<RTT::InputPort<bool>> globalEventPort;
 
   RTT::OutputPort<bool> debugPort;
 

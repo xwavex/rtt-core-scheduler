@@ -31,7 +31,7 @@
 
 using namespace cosima;
 
-CoreSchedulerService::CoreSchedulerService(RTT::TaskContext *owner) : RTT::Service("CoreSchedulerService", owner)
+CoreSchedulerService::CoreSchedulerService(RTT::TaskContext *owner) : RTT::Service("CoreSchedulerService", owner), m_lastComponentInPTG("")
 {
     this->gOwner = owner;
     this->addOperation("setExecutionOrder", &CoreSchedulerService::setExecutionOrder, this, RTT::OwnThread).doc("Set the execution order of the task contexts for a specific core scheduler.").arg("csName", "Name of the core scheduler task context.").arg("tcNames", "Names [] of the task contexts executed by the core scheduler.");
@@ -39,6 +39,12 @@ CoreSchedulerService::CoreSchedulerService(RTT::TaskContext *owner) : RTT::Servi
     this->addOperation("setInvolvedCoreScheduler", &CoreSchedulerService::setInvolvedCoreScheduler, this, RTT::OwnThread).doc("Set the involved core schedulers.").arg("csNames", "Names [] of the core schedulers.");
     this->addOperation("printDebugInformation", &CoreSchedulerService::printDebugInformation, this).doc("Print debug information.");
     this->addOperation("configure", &CoreSchedulerService::configure, this).doc("Do your thang!");
+    this->addOperation("setLastComponentInPTG", &CoreSchedulerService::setLastComponentInPTG, this).doc("Set the task context that is executed last in the PTG.").arg("csName", "Name of the last task context.");
+}
+
+void CoreSchedulerService::setLastComponentInPTG(std::string csName)
+{
+    m_lastComponentInPTG = csName;
 }
 
 void CoreSchedulerService::setExecutionOrder(std::string const &csName, std::vector<std::string> tcNames)
@@ -279,8 +285,64 @@ bool CoreSchedulerService::configure()
         }
         else
         {
-            PRELOG(Error) << "Connecting ports, cannot find sTC(" << sTC << ") or rTC(" << tTC << ")!" << RTT::endlog();
+            PRELOG(Error) << "Connecting ports, cannot find sTC(" << sTC << ") or tTC(" << tTC << ")!" << RTT::endlog();
             return false;
+        }
+    }
+
+    // 5) Connect core scheduler to the master core scheduler if it exists
+    if (m_lastComponentInPTG.compare("") != 0)
+    {
+        // master exists!
+        RTT::TaskContext *masterCS = gOwner->getPeer(m_lastComponentInPTG);
+        if (!masterCS)
+        {
+            PRELOG(Error) << "Master " << m_lastComponentInPTG << " could not be found!" << RTT::endlog();
+            return false;
+        }
+        // get operation createGlobalSignalPort
+        if (!masterCS->getOperation("createGlobalSignalPort"))
+        {
+            PRELOG(Error) << "Operation createGlobalSignalPort (in master cs) " << m_lastComponentInPTG << " could not be accessed!" << RTT::endlog();
+            return false;
+        }
+        RTT::OperationCaller<std::string(void)> createGlobalSignalPort_meth = masterCS->getOperation("createGlobalSignalPort");
+        // createGlobalSignalPort_meth.ready?
+        std::string csMasterSignalPortName = createGlobalSignalPort_meth();
+
+        RTT::base::PortInterface *signalOutPort = masterCS->getPort(csMasterSignalPortName);
+        if (!signalOutPort)
+        {
+            PRELOG(Error) << "Port " << m_lastComponentInPTG << "." << csMasterSignalPortName << " could not be found!" << RTT::endlog();
+            return false;
+        }
+
+        // Create event ports for all other core scheduler
+        for (int j = 0; j < m_coreSchedulerPtrs.size(); j++)
+        {
+            if (masterCS == m_coreSchedulerPtrs[j])
+            {
+                continue; // TODO I hope this works! :D
+            }
+            std::string cs_name = m_coreSchedulerPtrs[j]->getName();
+            // get operation createGlobalEventPort
+            if (!m_coreSchedulerPtrs[j]->getOperation("createGlobalEventPort"))
+            {
+                PRELOG(Error) << "Operation createGlobalEventPort (in non master cs) " << cs_name << " could not be accessed!" << RTT::endlog();
+                return false;
+            }
+            RTT::OperationCaller<std::string(void)> createGlobalEventPort_meth = m_coreSchedulerPtrs[j]->getOperation("createGlobalEventPort");
+            // createGlobalEventPort_meth.ready?
+            std::string csEventPortName = createGlobalEventPort_meth();
+            // connect ports
+            RTT::base::PortInterface *eventInPort = m_coreSchedulerPtrs[j]->getPort(csEventPortName);
+            if (!eventInPort)
+            {
+                PRELOG(Error) << "Port " << cs_name << "." << csEventPortName << " could not be found!" << RTT::endlog();
+                return false;
+            }
+            signalOutPort->connectTo(eventInPort);
+            PRELOG(Debug) << "Connected global signal: " << m_lastComponentInPTG << "." << csMasterSignalPortName << " -> " << cs_name << "." << csEventPortName << "." << RTT::endlog();
         }
     }
     return true;

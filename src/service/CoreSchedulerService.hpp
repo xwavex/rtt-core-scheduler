@@ -62,6 +62,11 @@ private:
   void setInvolvedCoreScheduler(std::vector<std::string> csNames);
 
   /**
+   * Set the component that is executed last in the PTG.
+   */
+  void setLastComponentInPTG(std::string csName);
+
+  /**
    * Print debug information.
    */
   void printDebugInformation();
@@ -105,6 +110,13 @@ private:
    * Storage for all port connections.
    */
   std::vector<std::pair<std::pair<RTT::TaskContext *, std::string>, std::pair<RTT::TaskContext *, std::string>>> portsToBeConnected;
+
+  /**
+   * Stores the component that is executed last in the PTG.
+   * This information is used to determine the master of the core scheduler,
+   * which notifies the other cs if a global iteration of the PTG has ended / a new one starts.
+   */
+  std::string m_lastComponentInPTG;
 };
 
 } // namespace cosima

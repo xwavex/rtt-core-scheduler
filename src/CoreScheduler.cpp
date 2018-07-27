@@ -48,6 +48,17 @@ CoreScheduler::CoreScheduler(std::string const &name) : cogimon::RTTIntrospectio
 	this->addOperation("setExecutionOrder", &CoreScheduler::setExecutionOrder, this).doc("Set the execution order of the peer task contexts.").arg("eo", "Task context names in the order of execution.");
 
 	this->addOperation("alwaysYieldAfterEachComponentExecution", &CoreScheduler::alwaysYieldAfterEachComponentExecution, this).doc("Decide if the core scheduler yields after each component execution.").arg("alwaysYield", "true or false.");
+
+	this->addOperation("createGlobalSignalPort", &CoreScheduler::createGlobalSignalPort, this).doc("Set this to be the only core scheduler master (there can always exist only one) and create a port to which the other cs can be connected. It returns the name of the generated port.");
+
+	this->addOperation("createGlobalEventPort", &CoreScheduler::createGlobalEventPort, this).doc("Create global event port that when called triggers the dataOnPort mechanism.");
+}
+
+std::string CoreScheduler::createGlobalEventPort()
+{
+	globalEventPort = std::make_shared<RTT::InputPort<bool>>(new RTT::InputPort<bool>("globalEventPort"));
+	this->ports()->addEventPort(*(globalEventPort.get()));
+	return globalEventPort->getName();
 }
 
 void CoreScheduler::setExecutionOrder(std::vector<std::string> eo)
@@ -93,6 +104,15 @@ bool CoreScheduler::configureHookInternal()
 		}
 	}
 	return generatePortsAndData();
+}
+
+std::string CoreScheduler::createGlobalSignalPort()
+{
+	// TODO perhaps use a unique pointer here, because we do not share this port?!
+	globalTriggerPort = std::make_shared<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>("globalTriggerPort"));
+	globalTriggerPort->setDataSample(false);
+	this->ports()->addPort(*(globalTriggerPort.get()));
+	return globalTriggerPort->getName();
 }
 
 void CoreScheduler::setSlaveActivityFor(RTT::TaskContext *new_block)
@@ -247,8 +267,17 @@ next_iteration_without_trigger:
 			}
 			else
 			{
-				PRELOG(Debug) << "updateHook() successful. Trigger next iteration, because we do not have a barrier condition for " << debug_out_name << "." << RTT::endlog();
-				this->trigger(); // TODO check for valid execution
+				if (!globalTriggerPort && m_activeBarrierCondition == 0)
+				{
+					// TODO Wait!
+					PRELOG(Debug) << "updateHook() successful. Yield until woken by global signal for next iteration." << RTT::endlog();
+					return;
+				}
+				else
+				{
+					PRELOG(Debug) << "updateHook() successful. Trigger next iteration, because we do not have a barrier condition for " << debug_out_name << "." << RTT::endlog();
+					this->trigger(); // TODO check for valid execution
+				}
 			}
 		}
 		else
@@ -260,6 +289,12 @@ next_iteration_without_trigger:
 		}
 	}
 	// Do nothing if we haven't fulfilled a barrier condition yet...
+	// Except for globally signalling that the execution sequence has finished (only if we are the master).
+	if (globalTriggerPort && m_activeTaskContextIndex == 0)
+	{
+		// Signal the global trigger, if the last execution in the sequence has finished!
+		writePort(globalTriggerPort, true);
+	}
 	PRELOG(Debug) << "updateHook() successful. Yield until woken by data event for barrier condition." << RTT::endlog();
 }
 
