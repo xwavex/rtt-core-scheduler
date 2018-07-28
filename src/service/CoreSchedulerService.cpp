@@ -293,17 +293,46 @@ bool CoreSchedulerService::configure()
     // 5) Connect core scheduler to the master core scheduler if it exists
     if (m_lastComponentInPTG.compare("") != 0)
     {
+        // find master which contains m_lastComponentInPTG.
+        std::string masterCsName = "";
+        for (int j = 0; j < m_coreSchedulerPtrs.size(); j++)
+        {
+            std::string cs_tmp_name = m_coreSchedulerPtrs[j]->getName();
+            if (m_execution_order.count(cs_tmp_name) > 0 && m_execution_order[cs_tmp_name].size() > 0)
+            {
+                // get last task context in order, because only the last ones can be last executed ;)
+                std::string lastTcName = m_execution_order[cs_tmp_name].at(m_execution_order[cs_tmp_name].size() - 1);
+
+                if (lastTcName.compare(m_lastComponentInPTG) == 0)
+                {
+                    // yay we found the tc so we know that the cs which we are searching for is cs_tmp_name.
+                    masterCsName = cs_tmp_name;
+                    break;
+                }
+            }
+            else
+            {
+                //TODO error should be consistent both lists.
+            }
+        }
+
+        if (masterCsName.compare("") == 0)
+        {
+            PRELOG(Error) << "Master containing " << m_lastComponentInPTG << " as last task context in the execution order could not be found!" << RTT::endlog();
+            return false;
+        }
+
         // master exists!
-        RTT::TaskContext *masterCS = gOwner->getPeer(m_lastComponentInPTG);
+        RTT::TaskContext *masterCS = gOwner->getPeer(masterCsName);
         if (!masterCS)
         {
-            PRELOG(Error) << "Master " << m_lastComponentInPTG << " could not be found!" << RTT::endlog();
+            PRELOG(Error) << "Master " << masterCsName << " could not be found!" << RTT::endlog();
             return false;
         }
         // get operation createGlobalSignalPort
         if (!masterCS->getOperation("createGlobalSignalPort"))
         {
-            PRELOG(Error) << "Operation createGlobalSignalPort (in master cs) " << m_lastComponentInPTG << " could not be accessed!" << RTT::endlog();
+            PRELOG(Error) << "Operation createGlobalSignalPort (in master cs) " << masterCsName << " could not be accessed!" << RTT::endlog();
             return false;
         }
         RTT::OperationCaller<std::string(void)> createGlobalSignalPort_meth = masterCS->getOperation("createGlobalSignalPort");
@@ -313,7 +342,7 @@ bool CoreSchedulerService::configure()
         RTT::base::PortInterface *signalOutPort = masterCS->getPort(csMasterSignalPortName);
         if (!signalOutPort)
         {
-            PRELOG(Error) << "Port " << m_lastComponentInPTG << "." << csMasterSignalPortName << " could not be found!" << RTT::endlog();
+            PRELOG(Error) << "Port " << masterCsName << "." << csMasterSignalPortName << " could not be found!" << RTT::endlog();
             return false;
         }
 
@@ -342,7 +371,7 @@ bool CoreSchedulerService::configure()
                 return false;
             }
             signalOutPort->connectTo(eventInPort);
-            PRELOG(Debug) << "Connected global signal: " << m_lastComponentInPTG << "." << csMasterSignalPortName << " -> " << cs_name << "." << csEventPortName << "." << RTT::endlog();
+            PRELOG(Debug) << "Connected global signal: " << masterCsName << "." << csMasterSignalPortName << " -> " << cs_name << "." << csEventPortName << "." << RTT::endlog();
         }
     }
     return true;

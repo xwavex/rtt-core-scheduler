@@ -56,8 +56,9 @@ CoreScheduler::CoreScheduler(std::string const &name) : cogimon::RTTIntrospectio
 
 std::string CoreScheduler::createGlobalEventPort()
 {
-	globalEventPort = std::make_shared<RTT::InputPort<bool>>(new RTT::InputPort<bool>("globalEventPort"));
+	globalEventPort = std::shared_ptr<RTT::InputPort<bool>>(new RTT::InputPort<bool>("globalEventPort"));
 	this->ports()->addEventPort(*(globalEventPort.get()));
+	PRELOG(Debug) << "I am no master." << RTT::endlog();
 	return globalEventPort->getName();
 }
 
@@ -109,9 +110,10 @@ bool CoreScheduler::configureHookInternal()
 std::string CoreScheduler::createGlobalSignalPort()
 {
 	// TODO perhaps use a unique pointer here, because we do not share this port?!
-	globalTriggerPort = std::make_shared<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>("globalTriggerPort"));
+	globalTriggerPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>("globalTriggerPort"));
 	globalTriggerPort->setDataSample(false);
 	this->ports()->addPort(*(globalTriggerPort.get()));
+	PRELOG(Debug) << "I am the master now." << RTT::endlog();
 	return globalTriggerPort->getName();
 }
 
@@ -247,55 +249,128 @@ next_iteration_without_trigger:
 				}
 			}
 		}
-		// Should work without problems, since we do not change the m_tcList during runtime!
-		m_activeTaskContextPtr = m_tcList.at(m_activeTaskContextIndex);
-		if (m_barrierConditions.find(m_activeTaskContextPtr->getName()) == m_barrierConditions.end())
+
+		// NO-End
+		//	- NO-Barrier
+		//		- (goto) / (trigger)
+		//	- Barrier
+		//		- (yield)
+		// End
+		//	- NO-Master
+		//		- (yield)
+		//	- Master
+		//		- (write global), (trigger)
+		if (m_activeTaskContextIndex > 0)
 		{
-			std::string debug_out_name = "";
-			// Case: We have not found a barrier condition for the execution of the next task context.
+			// ########################
+			// ######## NO-END ########
+			// ########################
+
+			m_activeTaskContextPtr = m_tcList.at(m_activeTaskContextIndex);
+			if (m_barrierConditions.find(m_activeTaskContextPtr->getName()) == m_barrierConditions.end())
 			{
-				std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is the only thing that can change here.
-				m_activeBarrierCondition = 0;
-				debug_out_name = m_activeTaskContextPtr->getName();
-			}
-			// Trigger the thread of the activity to execute its ExecutionEngine and the update() method.
-			// only do this if m_activeTaskContextIndex > 0, because otherwise we go other to the next iteration and need to exit the updateHook().
-			if (m_activeTaskContextIndex > 0 && m_doNextIterationWithoutTrigger)
-			{
-				PRELOG(Debug) << "Trigger next component execution, because we do not have a barrier condition for " << debug_out_name << "." << RTT::endlog();
-				goto next_iteration_without_trigger;
-			}
-			else
-			{
-				if (!globalTriggerPort && m_activeBarrierCondition == 0)
+				// ############################
+				// ######## NO-BARRIER ########
+				// ############################
+
+				// update barrier condition to zero.
+				std::string debug_out_name = "";
 				{
-					// TODO Wait!
-					PRELOG(Debug) << "updateHook() successful. Yield until woken by global signal for next iteration." << RTT::endlog();
-					return;
+					std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is the only thing that can change here.
+					m_activeBarrierCondition = 0;
+					debug_out_name = m_activeTaskContextPtr->getName();
+				}
+
+				if (m_doNextIterationWithoutTrigger)
+				{
+					// Since this is not the end of the sequence, and we do not want to yield inbetween if m_doNextIterationWithoutTrigger == true => goto.
+					PRELOG(Debug) << "updateHook() successful. Goto next component execution internally. That means we do not have a barrier condition for " << debug_out_name << "." << RTT::endlog();
+					goto next_iteration_without_trigger; // goto
 				}
 				else
 				{
-					PRELOG(Debug) << "updateHook() successful. Trigger next iteration, because we do not have a barrier condition for " << debug_out_name << "." << RTT::endlog();
-					this->trigger(); // TODO check for valid execution
+					// With m_doNextIterationWithoutTrigger == false, we trigger and return even tough we are not at the end of the sequence and we also have no barrier condition.
+					PRELOG(Debug) << "updateHook() successful. Trigger next component execution externally, even tough we don't have a barrier condition for " << debug_out_name << "." << RTT::endlog();
+					this->trigger();
+					return; // trigger
 				}
+			}
+			else
+			{
+				// #########################
+				// ######## BARRIER ########
+				// #########################
+
+				// update barrier condition to new value.
+				std::string debug_out_name = "";
+				{
+					std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is the only thing that can change here.
+					debug_out_name = m_activeTaskContextPtr->getName();
+					m_activeBarrierCondition = m_barrierConditions[debug_out_name];
+					PRELOG(Debug) << "Set barrier condition for " << debug_out_name << " active." << RTT::endlog();
+				}
+				PRELOG(Debug) << "updateHook() successful. Yield until woken by data event for barrier condition for " << debug_out_name << "." << RTT::endlog();
+				return; // yield
 			}
 		}
 		else
 		{
-			// Case: We have found a barrier condition for the execution of the next task context.
-			std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is the only thing that can change here.
-			m_activeBarrierCondition = m_barrierConditions[m_activeTaskContextPtr->getName()];
-			PRELOG(Debug) << "Set barrier condition for " << m_activeTaskContextPtr->getName() << " active." << RTT::endlog();
+			// #####################
+			// ######## END ########
+			// #####################
+
+			// update barrier condition
+			m_activeTaskContextPtr = m_tcList.at(m_activeTaskContextIndex);
+			if (m_barrierConditions.find(m_activeTaskContextPtr->getName()) == m_barrierConditions.end())
+			{
+				// ############################
+				// ######## NO-BARRIER ########
+				// ############################
+
+				// update barrier condition to zero.
+				std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is the only thing that can change here.
+				m_activeBarrierCondition = 0;
+			}
+			else
+			{
+				// #########################
+				// ######## BARRIER ########
+				// #########################
+
+				// update barrier condition to new value.
+				std::string debug_out_name = "";
+				{
+					std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is the only thing that can change here.
+					debug_out_name = m_activeTaskContextPtr->getName();
+					m_activeBarrierCondition = m_barrierConditions[debug_out_name];
+					PRELOG(Debug) << "Set barrier condition for " << debug_out_name << " active." << RTT::endlog();
+				}
+			}
+
+			if (!globalTriggerPort)
+			{
+				// ###########################
+				// ######## NO-MASTER ########
+				// ###########################
+
+				PRELOG(Debug) << "updateHook() successful. No Master so yield until woken by global signal for next iteration." << RTT::endlog();
+				return; // yield
+			}
+			else
+			{
+				// ########################
+				// ######## MASTER ########
+				// ########################
+
+				PRELOG(Debug) << "updateHook() successful. Master so trigger next iteration and signal global." << RTT::endlog();
+				// TODO first trigger and then write or the other way around?
+				this->trigger();
+				// Signal the global trigger, if the last execution in the sequence has finished!
+				writePort(globalTriggerPort, true);
+				return; // signal and trigger
+			}
 		}
 	}
-	// Do nothing if we haven't fulfilled a barrier condition yet...
-	// Except for globally signalling that the execution sequence has finished (only if we are the master).
-	if (globalTriggerPort && m_activeTaskContextIndex == 0)
-	{
-		// Signal the global trigger, if the last execution in the sequence has finished!
-		writePort(globalTriggerPort, true);
-	}
-	PRELOG(Debug) << "updateHook() successful. Yield until woken by data event for barrier condition." << RTT::endlog();
 }
 
 bool CoreScheduler::dataOnPortHook(RTT::base::PortInterface *port)
@@ -331,6 +406,19 @@ bool CoreScheduler::dataOnPortHook(RTT::base::PortInterface *port)
 			PRELOG(Debug) << "Data ptr is m_activeBarrierCondition == 0." << RTT::endlog();
 			PRELOG(Debug) << "dataOnPortHook( " << port->getName() << " ) successful. NOT notifying updateHook()." << RTT::endlog();
 			return false;
+		}
+	}
+	else if (port->getName().compare("globalEventPort") == 0)
+	{
+		// In this case we got a global trigger and have no barrier...
+		std::lock_guard<std::mutex> lockGuard(mutex); // lock because m_activeBarrierCondition is also accessed in updateHook().
+		if (!m_activeBarrierCondition)
+		{
+			return true;
+		}
+		else
+		{
+			return false; // TODO?
 		}
 	}
 	PRELOG(Warning) << "No data associated with port, how can this happen? Did we connect the wrong ports? " << port->getName() << "." << RTT::endlog();

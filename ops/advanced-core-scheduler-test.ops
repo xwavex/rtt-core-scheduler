@@ -54,6 +54,7 @@ SSS.configure();
 CoreSchedulerService.setInvolvedCoreScheduler(strings("CS1", "CS2"));
 CoreSchedulerService.setExecutionOrder("CS1", strings("S", "R"));
 CoreSchedulerService.setExecutionOrder("CS2", strings("SSS"));
+CoreSchedulerService.setLastComponentInPTG("R");
 
 # Receiver is constrained by the Sender S and SSS.
 CoreSchedulerService.addPTGFormula("S", "R");
@@ -66,8 +67,8 @@ connectPeers("ir","CS2");
 connectPeers("ir","S");
 connectPeers("ir","R");
 connectPeers("ir","SSS");
-ir.configure()
-ir.start()
+ir.configure();
+ir.start();
 
 CS1.start();
 CS2.start();
