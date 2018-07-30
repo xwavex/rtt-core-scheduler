@@ -58,7 +58,7 @@ CoreSchedulerService.setLastComponentInPTG("R");
 
 # Receiver is constrained by the Sender S and SSS.
 CoreSchedulerService.addPTGFormula("S", "R");
-#CoreSchedulerService.addPTGFormula("SSS", "R");
+CoreSchedulerService.addPTGFormula("SSS", "R");
 
 CoreSchedulerService.configure();
 
