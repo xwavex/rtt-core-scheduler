@@ -39,6 +39,7 @@ CoreSchedulerService::CoreSchedulerService(RTT::TaskContext *owner) : RTT::Servi
     this->addOperation("setInvolvedCoreScheduler", &CoreSchedulerService::setInvolvedCoreScheduler, this, RTT::OwnThread).doc("Set the involved core schedulers.").arg("csNames", "Names [] of the core schedulers.");
     this->addOperation("printDebugInformation", &CoreSchedulerService::printDebugInformation, this).doc("Print debug information.");
     this->addOperation("configure", &CoreSchedulerService::configure, this).doc("Do your thang!");
+    this->addOperation("start", &CoreSchedulerService::start, this).doc("Start all involved CS!");
     this->addOperation("setLastComponentInPTG", &CoreSchedulerService::setLastComponentInPTG, this).doc("Set the task context that is executed last in the PTG.").arg("csName", "Name of the last task context.");
 }
 
@@ -374,6 +375,27 @@ bool CoreSchedulerService::configure()
             PRELOG(Debug) << "Connected global signal: " << masterCsName << "." << csMasterSignalPortName << " -> " << cs_name << "." << csEventPortName << "." << RTT::endlog();
         }
     }
+    return true;
+}
+
+bool CoreSchedulerService::start()
+{
+    if (m_coreSchedulerPtrs.size() <= 0)
+    {
+        PRELOG(Warning) << "Service is not properly set up yet... won't start!" << RTT::endlog();
+        return false;
+    }
+
+    bool ret = true;
+    for (int j = 0; j < m_coreSchedulerPtrs.size(); j++)
+    {
+        if (!m_coreSchedulerPtrs[j]->start())
+        {
+            PRELOG(Warning) << "Could not start " << m_coreSchedulerPtrs[j]->getName() << RTT::endlog();
+            ret = false;
+        }
+    }
+
     return true;
 }
 

@@ -77,6 +77,11 @@ private:
   bool configure();
 
   /**
+   * Start all involved CS!
+   */
+  bool start();
+
+  /**
    * Owner pointer.
    */
   RTT::TaskContext *gOwner;
