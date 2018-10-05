@@ -79,11 +79,13 @@ bool CoreSchedulerService::configure()
             if (std::find(m_csTaskContexts.begin(), m_csTaskContexts.end(), peerName) != m_csTaskContexts.end())
             {
                 // Core scheduler task context.
+                PRELOG(Debug) << "Found core scheduler: " << tc->getName() << "." << RTT::endlog();
                 m_coreSchedulerPtrs.push_back(tc);
             }
             else
             {
                 // Normal task context.
+                PRELOG(Debug) << "Found normal task context: " << tc->getName() << "." << RTT::endlog();
                 m_normalTcPtrs.push_back(tc);
             }
         }
@@ -91,35 +93,45 @@ bool CoreSchedulerService::configure()
     // Compare m_coreSchedulerPtrs with entries in m_execution_order.
     for (auto it = m_execution_order.begin(), e = m_execution_order.end(); it != e;)
     {
+        PRELOG(Debug) << "Start search in " << it->first << "..." << RTT::endlog();
         bool found = false;
         for (int j = 0; j < m_coreSchedulerPtrs.size(); j++)
         {
+            PRELOG(Debug) << "Compare " << it->first << " with " << m_coreSchedulerPtrs[j]->getName() << "?" << RTT::endlog();
             if (it->first.compare(m_coreSchedulerPtrs[j]->getName()) == 0)
             {
+                PRELOG(Debug) << "Found " << m_coreSchedulerPtrs[j]->getName() << " for execution order!" << RTT::endlog();
                 found = true;
                 break;
             }
         }
         if (!found)
         {
-            // CS not found but demanded by order. Remove order from list.
-            PRELOG(Debug) << "Removing " << it->first << "." << RTT::endlog();
-            it = m_execution_order.erase(it);
-            // TODO throw error
+            //     // CS not found but demanded by order. Remove order from list.
+            PRELOG(Error) << "Did not find core scheduler: " << it->first << "." << RTT::endlog();
+            //     it = m_execution_order.erase(it);
+            //     // TODO throw error
         }
-        else
-        {
-            it++;
-        }
+        // else
+        // {
+        PRELOG(Debug) << "End search in " << it->first << "..." << RTT::endlog();
+        it++;
+        // }
     }
+
+    PRELOG(Debug) << "\nCore Schedulers are go!\n"
+                  << RTT::endlog();
+
     // Remove missing task context from m_ptg_formulas.
     portsToBeConnected.clear();
 
     for (auto it = m_ptg_formulas.begin(), e = m_ptg_formulas.end(); it != e;)
     {
+        PRELOG(Debug) << "Start search in (m_ptg_formulas) " << it->first << "..." << RTT::endlog();
         bool found_first = false;
         for (int j = 0; j < m_normalTcPtrs.size(); j++)
         {
+            PRELOG(Debug) << "Compare " << it->first << " with " << m_normalTcPtrs[j]->getName() << "?" << RTT::endlog();
             if (it->first.compare(m_normalTcPtrs[j]->getName()) == 0)
             {
                 found_first = true;
@@ -129,6 +141,7 @@ bool CoreSchedulerService::configure()
         bool found_second = false;
         for (int j = 0; j < m_normalTcPtrs.size(); j++)
         {
+            PRELOG(Debug) << "Compare " << it->second << " with " << m_normalTcPtrs[j]->getName() << "?" << RTT::endlog();
             if (it->second.compare(m_normalTcPtrs[j]->getName()) == 0)
             {
                 found_second = true;
@@ -137,16 +150,32 @@ bool CoreSchedulerService::configure()
         }
         if (!found_first || !found_second)
         {
+            if (!found_first)
+            {
+                PRELOG(Error) << it->first << " not found!" << RTT::endlog();
+            }
+
+            if (!found_second)
+            {
+                PRELOG(Error) << it->second << " not found!" << RTT::endlog();
+            }
             // CS not found but demanded by order. Remove order from list.
-            PRELOG(Debug) << "Removing (" << it->first << "[" << found_first << "], " << it->second << "[" << found_second << "])." << RTT::endlog();
-            it = m_ptg_formulas.erase(it);
+            PRELOG(Error) << "Removing (" << it->first << "[" << found_first << "], " << it->second << "[" << found_second << "])." << RTT::endlog();
+            // it = m_ptg_formulas.erase(it);
             // TODO throw error
         }
-        else
-        {
-            it++;
-        }
+        // else
+        // {
+
+        // }
+
+        PRELOG(Debug) << "End search in (m_ptg_formulas) " << it->first << "..." << RTT::endlog();
+        it++;
     }
+
+    PRELOG(Debug) << "\nPTG Formulas are go!\n"
+                  << RTT::endlog();
+
     // iterate over filtered PTG formulas
     for (auto const &f : m_ptg_formulas)
     {
