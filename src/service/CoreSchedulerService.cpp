@@ -262,6 +262,7 @@ bool CoreSchedulerService::configure()
                 RTT::TaskContext *peerPtr = gOwner->getPeer(tc_name_in_eo);
                 if (peerPtr)
                 {
+                    PRELOG(Debug) << "Added tc with name " << tc_name_in_eo << " to peer " << cs_name << "." << RTT::endlog();
                     m_coreSchedulerPtrs[j]->addPeer(peerPtr);
                 }
                 else
@@ -280,10 +281,19 @@ bool CoreSchedulerService::configure()
             RTT::OperationCaller<void(std::vector<std::string>)> setExecutionOrder_meth = m_coreSchedulerPtrs[j]->getOperation("setExecutionOrder");
             // setExecutionOrder_meth.ready?
             setExecutionOrder_meth(m_execution_order[cs_name]);
+            PRELOG(Debug) << "Set execution order for " << cs_name << "." << RTT::endlog();
         }
 
         // configure core scheduler
-        m_coreSchedulerPtrs[j]->configure();
+        bool conf = m_coreSchedulerPtrs[j]->configure();
+        if (conf)
+        {
+            PRELOG(Debug) << "" << cs_name << " properly configured." << RTT::endlog();
+        }
+        else
+        {
+            PRELOG(Error) << "Could not configure " << cs_name << "!" << RTT::endlog();
+        }
         // }
         // else
         // {
@@ -319,6 +329,8 @@ bool CoreSchedulerService::configure()
             return false;
         }
     }
+
+    PRELOG(Debug) << "Connected trigger ports!" << RTT::endlog();
 
     // 5) Connect core scheduler to the master core scheduler if it exists
     if (m_lastComponentInPTG.compare("") != 0)
@@ -404,6 +416,9 @@ bool CoreSchedulerService::configure()
             PRELOG(Debug) << "Connected global signal: " << masterCsName << "." << csMasterSignalPortName << " -> " << cs_name << "." << csEventPortName << "." << RTT::endlog();
         }
     }
+
+    PRELOG(Debug) << "Connected global trigger ports!" << RTT::endlog();
+    PRELOG(Debug) << "Done configuring!" << RTT::endlog();
     return true;
 }
 

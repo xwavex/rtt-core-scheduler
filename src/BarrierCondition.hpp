@@ -102,6 +102,11 @@ public:
    */
   void resetAllBarrierData();
 
+  /**
+   * Return a string containing the current state.
+   */
+  std::string printState();
+
 private:
   /**
      * Name of the TaskContext for which the barrier applies.

@@ -109,11 +109,18 @@ bool CoreScheduler::configureHookInternal()
 
 std::string CoreScheduler::createGlobalSignalPort()
 {
-	// TODO perhaps use a unique pointer here, because we do not share this port?!
-	globalTriggerPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>("globalTriggerPort"));
-	globalTriggerPort->setDataSample(false);
-	this->ports()->addPort(*(globalTriggerPort.get()));
-	PRELOG(Debug) << "I am the master now." << RTT::endlog();
+	if (!this->ports()->getPort("globalTriggerPort"))
+	{
+		// TODO perhaps use a unique pointer here, because we do not share this port?!
+		globalTriggerPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>("globalTriggerPort"));
+		globalTriggerPort->setDataSample(false);
+		this->ports()->addPort(*(globalTriggerPort.get()));
+		PRELOG(Debug) << "I am the master now." << RTT::endlog();
+	}
+	else
+	{
+		PRELOG(Warning) << "I am still the master. And already have this port." << RTT::endlog();
+	}
 	return globalTriggerPort->getName();
 }
 
@@ -130,12 +137,20 @@ void CoreScheduler::setSlaveActivityFor(RTT::TaskContext *new_block)
 std::string CoreScheduler::createSignalPort(std::string const &tcName)
 {
 	std::string genPortName = "signal_port_" + tcName;
-	std::shared_ptr<RTT::OutputPort<bool>> genOutputPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>());
-	genOutputPort->setName(genPortName);
-	genOutputPort->doc("This port is used to signal when " + tcName + " finished its execution.");
-	genOutputPort->setDataSample(false);
-	genPortOutputSignalPtrs[tcName] = genOutputPort;
-	this->ports()->addPort(*(genOutputPort.get()));
+	// If port does not exist create it.
+	if (!this->ports()->getPort(genPortName))
+	{
+		std::shared_ptr<RTT::OutputPort<bool>> genOutputPort = std::shared_ptr<RTT::OutputPort<bool>>(new RTT::OutputPort<bool>());
+		genOutputPort->setName(genPortName);
+		genOutputPort->doc("This port is used to signal when " + tcName + " finished its execution.");
+		genOutputPort->setDataSample(false);
+		genPortOutputSignalPtrs[tcName] = genOutputPort;
+		this->ports()->addPort(*(genOutputPort.get()));
+	}
+	else
+	{
+		PRELOG(Warning) << "I already have the port " << genPortName << "." << RTT::endlog();
+	}
 	return genPortName;
 }
 
@@ -201,13 +216,33 @@ bool CoreScheduler::startHookInternal()
 
 void CoreScheduler::updateHookInternal()
 {
-	PRELOG(Debug) << "updateHook() in progess..." << RTT::endlog();
+	PRELOG(Debug) << "1 updateHook() in progess..." << RTT::endlog();
+
 next_iteration_without_trigger:
+
+	PRELOG(Debug) << "2 updateHook() in progess... (w/o trigger)" << RTT::endlog();
+	if (!m_activeBarrierCondition)
+	{
+		PRELOG(Debug) << "No current state, because we have no active barrier condition." << RTT::endlog();
+	}
+	else
+	{
+		PRELOG(Debug) << "Current state " << m_activeBarrierCondition->printState() << RTT::endlog();
+	}
+
 	// TODO not sure if double checking is really necessary...?
 	if ((!m_activeBarrierCondition) || (m_activeBarrierCondition->isFulfilled()))
 	{
 		PRELOG(Debug) << "Barrier condition fulfilled for " << m_activeTaskContextPtr->getName() << ". Call update()." << RTT::endlog();
 		m_activeTaskContextPtr->update(); // update() because they are slaves!
+
+		/**
+		 * 
+		 * TODO if there is an external component we need to wait for, do not call update and yield,
+		 * and wait for external finished signal of that component. In the future, we can just add another barrier condition to the next component to call.
+		 * 
+		 */
+
 		try
 		{
 			std::shared_ptr<RTT::OutputPort<bool>> signalPort = genPortOutputSignalPtrs.at(m_activeTaskContextPtr->getName()); // assumption here is that the name of a component did not change in the mean time... otherwise I need to use a pointer as key!

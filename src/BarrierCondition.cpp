@@ -82,6 +82,26 @@ bool BarrierCondition::isFulfilled()
     return true;
 }
 
+std::string BarrierCondition::printState()
+{
+    std::string ret = "";
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        for (auto bd : m_barrierData)
+        {
+            if (bd->getDataState())
+            {
+                ret += "" + bd->getDataName() + " = true\n";
+            }
+            else
+            {
+                ret += "" + bd->getDataName() + " = false\n";
+            }
+        }
+    }
+    return ret;
+}
+
 bool BarrierCondition::isBarrierDataRelated(std::shared_ptr<BarrierData> bd)
 {
     int s = -1;
