@@ -1,4 +1,4 @@
-# rtt-core-scheduler
+# RTT Core Scheduler
 
 ## Usage
 
@@ -43,3 +43,6 @@ CoreSchedulerService.configure();
 CS1.start();
 CS2.start();
 ```
+
+## Dependencies
+ - [corlab/rtt-core-extensions](https://github.com/corlab/rtt-core-extensions)
