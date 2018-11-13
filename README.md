@@ -1,5 +1,7 @@
 # RTT Core Scheduler
 
+The Core Scheduler (CS) extension allows to schedule components, distributed on different cores, while upholding precedence constraints. Each involved core will host one CS. Components that should be executed on a particular core are added to the respective CS. All components are scheduled according to the *flow-preservation*-criterion.
+
 ## Usage
 
 ```python
